@@ -1,1 +1,6 @@
 Active Character=;
+Email=;
+Password=;
+IMAP=;
+SocialLogin=;
+SocialPassword=;
