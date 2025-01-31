@@ -39,17 +39,17 @@ def update_google_sheet(row_name, value, col, mode):
         if mode == "replace":
             sheet.update_cell(row_index, col, value)
             sheet.update_cell(row_index, 12, current_time)
-            sys.exit(f"{value} placed to row #{row_index}, column #{col}")
+            print(f"{value} placed to row #{row_index}, column #{col}", flush=True)
         elif mode == "plus":
             new_value = int(sheet.col_values(col)[row_index - 1]) + value
             sheet.update_cell(row_index, col, new_value)
             sheet.update_cell(row_index, 12, current_time)
-            sys.exit(f"{value} was added to row #{row_index} (result is {new_value}), column #{col}")
-        else :
-            sys.exit("Wrong mode!")
+            print(f"{value} was added to row #{row_index} (result is {new_value}), column #{col}", flush=True)
+        else:
+            print("Wrong mode!", flush=True)
 
     else:
-        print("Account wasn't founded")
+        print("Account wasn't founded", flush=True)
 
 
 if __name__ == "__main__":
