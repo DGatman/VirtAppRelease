@@ -34,19 +34,20 @@ def update_google_sheet(row_name, value, col, mode):
     # Ищем строку с нужным значением
     if row_name in column_a:
         row_index = column_a.index(row_name) + 1  # gspread использует 1-based индексы
-        current_time = datetime.now().strftime("%d.%m.%Y %H:%M")
-        # Записываем значение в столбец I (9-й столбец)
-        if mode == "replace":
-            sheet.update_cell(row_index, col, value)
-            sheet.update_cell(row_index, 12, current_time)
-            print(f"{value} placed to row #{row_index}, column #{col}", flush=True)
-        elif mode == "plus":
-            new_value = int(sheet.col_values(col)[row_index - 1]) + value
-            sheet.update_cell(row_index, col, new_value)
-            sheet.update_cell(row_index, 12, current_time)
-            print(f"{value} was added to row #{row_index} (result is {new_value}), column #{col}", flush=True)
-        else:
-            print("Wrong mode!", flush=True)
+        if sheet.col_values(4)[row_index - 1] != "Не основа":
+            current_time = datetime.now().strftime("%d.%m.%Y %H:%M")
+            # Записываем значение в столбец I (9-й столбец)
+            if mode == "replace":
+                sheet.update_cell(row_index, col, value)
+                sheet.update_cell(row_index, 12, current_time)
+                print(f"{value} placed to row #{row_index}, column #{col}", flush=True)
+            elif mode == "plus":
+                new_value = int(sheet.col_values(col)[row_index - 1]) + value
+                sheet.update_cell(row_index, col, new_value)
+                sheet.update_cell(row_index, 12, current_time)
+                print(f"{value} was added to row #{row_index} (result is {new_value}), column #{col}", flush=True)
+            else:
+                print("Wrong mode!", flush=True)
 
     else:
         print("Account wasn't founded", flush=True)
