@@ -1,9 +1,12 @@
+import subprocess
 from datetime import datetime
-
-import gspread
 import sys
-from google.oauth2.service_account import Credentials
-
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials  # Пример библиотеки
+except ImportError:
+    print("Некоторые библиотеки не установлены. Устанавливаю...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
 
 def update_google_sheet(row_name, value, col, mode):
     # Настройка доступа
