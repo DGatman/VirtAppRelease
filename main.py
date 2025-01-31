@@ -39,14 +39,14 @@ def update_google_sheet(row_name, value, col, mode):
         if mode == "replace":
             sheet.update_cell(row_index, col, value)
             sheet.update_cell(row_index, 12, current_time)
-            print(f"Значение {value} записано в строку {row_index}, столбец {col}")
+            sys.exit(f"Значение {value} записано в строку {row_index}, столбец {col}")
         elif mode == "plus":
             new_value = int(sheet.col_values(col)[row_index - 1]) + value
             sheet.update_cell(row_index, col, new_value)
             sheet.update_cell(row_index, 12, current_time)
-            print(f"Значение {value} добавлено к строке {row_index} (итог {new_value}), столбец {col}")
+            sys.exit(f"Значение {value} добавлено к строке {row_index} (итог {new_value}), столбец {col}")
         else :
-            print("Неизвестный режим!")
+            sys.exit("Неизвестный режим!")
 
     else:
         print("Аккаунт не найден в таблице")
@@ -54,8 +54,7 @@ def update_google_sheet(row_name, value, col, mode):
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
-        print("Использование: python update_google_sheets.py <row_name> <value> <column_number> <mode>")
-        sys.exit(1)
+        sys.exit("Использование: python update_google_sheets.py <row_name> <value> <column_number> <mode>")
 
     row_name = sys.argv[1]
     value = int(sys.argv[2])
