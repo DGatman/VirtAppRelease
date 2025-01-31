@@ -54,6 +54,7 @@ def update_google_sheet(row_name, value, col, mode):
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
+        print("Usage: python update_google_sheets.py <row_name> <value> <column_number> <mode>", flush=True)
         sys.exit("Usage: python update_google_sheets.py <row_name> <value> <column_number> <mode>")
 
     row_name = sys.argv[1]
