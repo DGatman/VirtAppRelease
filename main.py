@@ -8,6 +8,11 @@ except ImportError:
     print("Некоторые библиотеки не установлены. Устанавливаю...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
 
+def check_int(s):
+    if s[0] in ('-', '+'):
+        return s[1:].isdigit()
+    return s.isdigit()
+
 def update_google_sheet(row_name, value, col, mode):
     # Настройка доступа
     SCOPE = ["https://spreadsheets.google.com/feeds",
@@ -20,30 +25,20 @@ def update_google_sheet(row_name, value, col, mode):
 
     # Получаем все данные из столбца А
     column_a = sheet.col_values(1)  # PC NAME
-    column_b = sheet.col_values(2)  # Server
-    column_c = sheet.col_values(3)  # Name
-    column_d = sheet.col_values(4)  # Vip
-    column_e = sheet.col_values(5)  # VipDuration
-    column_g = sheet.col_values(7)  # Money
-    column_h = sheet.col_values(8)  # Tips
-    column_i = sheet.col_values(9)  # BP
-    column_j = sheet.col_values(10)  # DP
-    column_k = sheet.col_values(11)  # Flat
-    column_l = sheet.col_values(12)  # Date
 
     # Ищем строку с нужным значением
     if row_name in column_a:
         row_index = column_a.index(row_name) + 1  # gspread использует 1-based индексы
         if sheet.col_values(4)[row_index - 1] != "Не основа":
             current_time = datetime.now().strftime("%d.%m.%Y %H:%M")
-            # Записываем значение в столбец I (9-й столбец)
+            # Записываем значение в столбец
             if mode == "replace":
                 sheet.update_cell(row_index, col, value)
                 sheet.update_cell(row_index, 12, current_time)
                 print(f"{value} placed to row #{row_index}, column #{col}", flush=True)
             elif mode == "plus":
                 old_value = sheet.col_values(col)[row_index - 1]
-                if old_value.is_integer():
+                if check_int(old_value):
                     new_value = old_value + value
                 else:
                     new_value = value
@@ -59,8 +54,8 @@ def update_google_sheet(row_name, value, col, mode):
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
-        print("Usage: python update_google_sheets.py <row_name> <value> <column_number> <mode>", flush=True)
-        sys.exit("Usage: python update_google_sheets.py <row_name> <value> <column_number> <mode>")
+        print("Usage: main.py <row_name> <value> <column_number> <mode>", flush=True)
+        sys.exit("Usage: python3 main.py <row_name> <value> <column_number> <mode>")
 
     row_name = sys.argv[1]
     value = int(sys.argv[2])
