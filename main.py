@@ -1,6 +1,7 @@
 import subprocess
 from datetime import datetime
 import sys
+
 try:
     import gspread
     from google.oauth2.service_account import Credentials  # Пример библиотеки
@@ -8,10 +9,15 @@ except ImportError:
     print("Некоторые библиотеки не установлены. Устанавливаю...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
 
+
 def check_int(s):
-    if s[0] in ('-', '+'):
-        return s[1:].isdigit()
-    return s.isdigit()
+    if s != "":
+        if s[0] in ('-', '+'):
+            return s[1:].isdigit()
+        return s.isdigit()
+    else:
+        return False
+
 
 def update_google_sheet(row_name, value, col, mode):
     # Настройка доступа
@@ -44,7 +50,8 @@ def update_google_sheet(row_name, value, col, mode):
                     new_value = value
                 sheet.update_cell(row_index, col, new_value)
                 sheet.update_cell(row_index, 12, current_time)
-                print(f"{value} was added to row #{row_index} (was - {old_value}, now - {new_value}), column #{col}", flush=True)
+                print(f"{value} was added to row #{row_index} (was - {old_value}, now - {new_value}), column #{col}",
+                      flush=True)
             else:
                 print("Wrong mode!", flush=True)
 
