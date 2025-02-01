@@ -39,7 +39,7 @@ def update_google_sheet(row_name, value, col, mode):
             elif mode == "plus":
                 old_value = sheet.col_values(col)[row_index - 1]
                 if check_int(old_value):
-                    new_value = old_value + value
+                    new_value = int(old_value) + value
                 else:
                     new_value = value
                 sheet.update_cell(row_index, col, new_value)
