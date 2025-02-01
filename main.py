@@ -42,10 +42,14 @@ def update_google_sheet(row_name, value, col, mode):
                 sheet.update_cell(row_index, 12, current_time)
                 print(f"{value} placed to row #{row_index}, column #{col}", flush=True)
             elif mode == "plus":
-                new_value = int(sheet.col_values(col)[row_index - 1]) + value
+                old_value = sheet.col_values(col)[row_index - 1]
+                if old_value.is_integer():
+                    new_value = old_value + value
+                else:
+                    new_value = value
                 sheet.update_cell(row_index, col, new_value)
                 sheet.update_cell(row_index, 12, current_time)
-                print(f"{value} was added to row #{row_index} (result is {new_value}), column #{col}", flush=True)
+                print(f"{value} was added to row #{row_index} (was - {old_value}, now - {new_value}), column #{col}", flush=True)
             else:
                 print("Wrong mode!", flush=True)
 
