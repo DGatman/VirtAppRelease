@@ -6,7 +6,7 @@ try:
     import gspread
     from google.oauth2.service_account import Credentials  # Пример библиотеки
 except ImportError:
-    print("Некоторые библиотеки не установлены. Устанавливаю...")
+    print("Некоторые библиотеки не установлены. Устанавливаю...", flush=True)
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
 
 
@@ -29,21 +29,23 @@ def update_google_sheet(row_name, value, col, mode):
     # Открываем таблицу и лист "Общая"
     sheet = client.open("Учет виртов").worksheet("Total")
 
-    # Получаем все данные из столбца А
+    # Получаем все данные из столбца А и состояния
     column_a = sheet.col_values(1)  # PC NAME
+    status_column = sheet.col_values(4)  # Состояние (основа / не основа)
 
-    # Ищем строку с нужным значением
-    if row_name in column_a:
-        row_index = column_a.index(row_name) + 1  # gspread использует 1-based индексы
-        if sheet.col_values(4)[row_index - 1] != "Не основа":
+    # Проходим по всем совпадениям
+    for row_index, name in enumerate(column_a, start=1):
+        if name == row_name and status_column[row_index - 1] != "Не основа":
             current_time = datetime.now().strftime("%d.%m.%Y %H:%M")
-            # Записываем значение в столбец
+
             if mode == "replace":
                 sheet.update_cell(row_index, col, value)
                 sheet.update_cell(row_index, 12, current_time)
                 print(f"{value} placed to row #{row_index}, column #{col}", flush=True)
+                return  # После обновления выходим из функции
+
             elif mode == "plus":
-                old_value = sheet.col_values(col)[row_index - 1]
+                old_value = sheet.cell(row_index, col).value
                 if check_int(old_value):
                     new_value = int(old_value) + value
                 else:
@@ -52,11 +54,9 @@ def update_google_sheet(row_name, value, col, mode):
                 sheet.update_cell(row_index, 12, current_time)
                 print(f"{value} was added to row #{row_index} (was - {old_value}, now - {new_value}), column #{col}",
                       flush=True)
-            else:
-                print("Wrong mode!", flush=True)
+                return  # После обновления выходим из функции
 
-    else:
-        print("Account wasn't founded", flush=True)
+    print("Account wasn't founded or all matches are 'Не основа'", flush=True)
 
 
 if __name__ == "__main__":
