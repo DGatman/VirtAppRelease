@@ -1,9 +1,11 @@
+import json
 import subprocess
 from datetime import datetime
 import sys
-
+import time
 try:
     import gspread
+    import requests
     from google.oauth2.service_account import Credentials  # Пример библиотеки
 except ImportError:
     print("Некоторые библиотеки не установлены. Устанавливаю...", flush=True)
@@ -11,7 +13,7 @@ except ImportError:
 
 
 def check_int(s):
-    if s != "":
+    if s != "" and s is not None:
         if s[0] in ('-', '+'):
             return s[1:].isdigit()
         return s.isdigit()
@@ -19,7 +21,7 @@ def check_int(s):
         return False
 
 
-def update_google_sheet(row_name, value, col, mode):
+def send_to_google_sheet(row_name, value, col, mode):
     # Настройка доступа
     SCOPE = ["https://spreadsheets.google.com/feeds",
              "https://www.googleapis.com/auth/drive"]
@@ -58,15 +60,61 @@ def update_google_sheet(row_name, value, col, mode):
 
     print("Account wasn't founded or all matches are 'Не основа'", flush=True)
 
+def get_profiles(login):
+    profiles = ["jopa", "jorik"]
+
+    # Login
+    url = "https://gta5rp.com/api/V2/users/auth/login"
+
+    payload = "{\"2fa_code\": \"593519\", \"login\": \"DGatman\", \"password\": \"Leik5te5\", \"remember\": \"0\"}"
+    headers = {
+        'content-type': "application/json"
+    }
+
+    response = requests.request("POST", url, data=payload, headers=headers)
+    account = json.loads(response.text)
+    token = account["token"]
+
+
+    #Getting profiles
+    url = "https://gta5rp.com/api/V2/users/chars/13"
+
+    headers = {
+        'x-access-token': token
+    }
+
+    response = requests.request("GET", url,headers=headers)
+    print(response.text)
+    profiles = json.loads(response.text)
+    return profiles
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
+    if len(sys.argv) == 5:
+        row_name = sys.argv[1]
+        value = int(sys.argv[2])
+        col = int(sys.argv[3])
+        mode = sys.argv[4]
+        send_to_google_sheet(row_name, value, col, mode)
+
+    elif len(sys.argv) == 2:
+        login = sys.argv[1]
+        profiles = get_profiles(login)
+        print("Profiles:\t")
+        for i in profiles:
+            print("Name:\t" + i["name"])
+            print("LVL:\t" + str(i["lvl"]))
+            print("Cash:\t" + str(i["cash"]))
+            print("Bank:\t" + str(i["bank"]))
+            print("House:\tYES" if i["house"] is not None else "House:\tNO")
+            print("Apartment:\tYES" if i["apartment"] is not None else "Apartment:\tNO")
+            print("VEHICLES:")
+            for v in i["vehicles"]:
+                print("\t" + v["title"])
+            print("Vip type:\t" + i["vip_name"])
+            print("Vip duration:\t" + str(round((i["vip_expire_at"] - time.time())/86400)) + " days")
+
+    else:
         print("Usage: main.py <row_name> <value> <column_number> <mode>", flush=True)
         sys.exit("Usage: python3 main.py <row_name> <value> <column_number> <mode>")
 
-    row_name = sys.argv[1]
-    value = int(sys.argv[2])
-    col = int(sys.argv[3])
-    mode = sys.argv[4]
 
-    update_google_sheet(row_name, value, col, mode)
