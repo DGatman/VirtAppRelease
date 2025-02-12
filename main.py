@@ -57,9 +57,24 @@ class Profile:
     vip_expire_at: int
 
 
+@dataclass
+class User:
+    login: str
+    email: str
+    is_admin: bool
+    is_admin_login_available: bool
+    last_char_id: int
+    last_server: int
+    balance: int
+    total_donate: int
+    pending_donate: str
+    has_notifies: bool
+
+
 def from_dict(data: dict, server_name: str) -> Profile:
     # Удаляем ненужные поля
-    keys_to_remove = ["age", "id", "is_online", "sex", "fraction", "fraction_rank", "fraction_rank_name", "friends", "skills",
+    keys_to_remove = ["age", "id", "is_online", "sex", "fraction", "fraction_rank", "fraction_rank_name", "friends",
+                      "skills",
                       "is_vehicle_view_needed", "business"]
     for key in keys_to_remove:
         data.pop(key, None)
@@ -146,6 +161,24 @@ def get_profiles(login, password):
     return profiles
 
 
+def get_user(login, password):
+    url = "https://gta5rp.com/api/V2/users/auth/login"
+    payload = "{\"login\": \"" + login + "\", \"password\": \"" + password + "\", \"remember\": \"0\"}"
+    headers = {
+        'content-type': "application/json"
+    }
+    response = requests.request("POST", url, data=payload, headers=headers)
+    account = json.loads(response.text)
+    token = account["token"]
+    url = "https://gta5rp.com/api/V2/users/"
+    headers = {
+        'x-access-token': token
+    }
+    response = requests.request("GET", url, headers=headers)
+    json_data = json.loads(response.text)
+    return User(**json_data)
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 5:
         row_name = sys.argv[1]
@@ -174,6 +207,19 @@ if __name__ == "__main__":
             print("Vip lvl:\t" + str(profile.vip_level), flush=True)
             print("Vip type:\t" + profile.vip_name, flush=True)
             print("Vip duration:\t" + str(round((profile.vip_expire_at - time.time()) / 86400)) + " days\n", flush=True)
+
+    elif len(sys.argv) == 4:
+        login = sys.argv[1]
+        password = sys.argv[2]
+        lol = sys.argv[3]
+        user = get_user(login,password)
+        print("Login:\t\t" + user.login, flush=True)
+        print("Email:\t\t" + user.email, flush=True)
+        print("Last char:\t\t" + str(user.last_char_id), flush=True)
+        print("Last server:\t\t" + str(user.last_server), flush=True)
+        print("Balance:\t\t" + str(user.balance), flush=True)
+        print("Total donate:\t\t" + str(user.total_donate), flush=True)
+        print("Pending donate:\t\t" + str(user.pending_donate), flush=True)
 
     else:
         print("Usage: main.py <row_name> <value> <column_number> <mode>", flush=True)
