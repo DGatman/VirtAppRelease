@@ -13,6 +13,10 @@ try:
 except ImportError:
     print("Некоторые библиотеки не установлены. Устанавливаю...", flush=True)
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+except ValueError:
+    print("Некорректно установленные библиотеки. Переустанавливаю...", flush=True)
+    subprocess.check_call([sys.executable, "-m", "pip", "uninstall", "-r", "requirements.txt"])
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
 
 server_names = {
     1: "01.Downtown",
