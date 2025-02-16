@@ -117,6 +117,7 @@ if __name__ == "__main__":
         profiles = get_profiles(login, password)
         for profile in profiles:
             if profile.is_online:
+                print("Profile was founded. Lvl is: " + str(profile.lvl), flush=True)
                 sys.exit(profile.lvl)
         print("Profile wasn't founded", flush=True)
         sys.exit(0)
