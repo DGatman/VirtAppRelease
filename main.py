@@ -196,7 +196,38 @@ if __name__ == "__main__":
         password = sys.argv[2]
         profiles = get_profiles(login, password)
         print("Profiles:\t", flush=True)
+        SCOPE = ["https://spreadsheets.google.com/feeds",
+                 "https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPE)
+        client = gspread.authorize(creds)
+
+        # Открываем таблицу и лист "Общая"
+        sheet = client.open("Учет виртов").worksheet("Total")
+
+        # Получаем все данные из столбца А и состояния
+        server = sheet.col_values(2)  # Server
+        profile_name = sheet.col_values(3)  # Name
+        vipType = sheet.col_values(4)  # Vip type
+        vipDuration = sheet.col_values(5)  # Vip duration
+        money = sheet.col_values(7)  # Money
+        flat = sheet.col_values(11)  # House
         for profile in profiles:
+            for row_index, server_name in enumerate(server, start=1):
+                if server_name == profile.server and profile_name[row_index - 1].replace(" ","_") == profile.name:
+                    print(f"Found in table, row #{row_index}", flush=True)
+                    if vipType[row_index - 1] != "Не основа":
+                        if profile.vip_level == 1:
+                            sheet.update_cell(row_index, 4, "Standart")
+                        elif profile.vip_level == 2:
+                            sheet.update_cell(row_index, 4, "Gold")
+                        elif profile.vip_level == 3:
+                            sheet.update_cell(row_index, 4, "Platinum")
+                        sheet.update_cell(row_index, 5, round((profile.vip_expire_at - time.time()) / 86400))
+                    sheet.update_cell(row_index, 7, profile.cash+profile.bank)
+                    if profile.house or profile.apartment:
+                        sheet.update_cell(row_index, 11, "Квартира")
+                    else:
+                        sheet.update_cell(row_index, 11, "")
             print("Server:\t\t" + profile.server, flush=True)
             print("Name:\t\t" + profile.name, flush=True)
             print("Lvl:\t\t" + str(profile.lvl), flush=True)
@@ -215,8 +246,27 @@ if __name__ == "__main__":
     elif len(sys.argv) == 4:
         login = sys.argv[1]
         password = sys.argv[2]
-        lol = sys.argv[3]
+        row_name = sys.argv[3]
         user = get_user(login,password)
+        if user is not None and user.balance > 0:
+            SCOPE = ["https://spreadsheets.google.com/feeds",
+                     "https://www.googleapis.com/auth/drive"]
+            creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPE)
+            client = gspread.authorize(creds)
+
+            # Открываем таблицу и лист "Общая"
+            sheet = client.open("Учет виртов").worksheet("Total")
+
+            # Получаем все данные из столбца А и состояния
+            column_a = sheet.col_values(1)  # PCNAME
+            status_column = sheet.col_values(10)  # DP
+
+            for row_index, name in enumerate(column_a, start=1):
+                if name == row_name:
+                    print(f"Found in table, row #{row_index}", flush=True)
+                    sheet.update_cell(row_index, 10, user.balance)
+                    print(f"{user.balance} placed to row #{row_index}, column #10", flush=True)
+
         print("Login:\t\t" + user.login, flush=True)
         print("Email:\t\t" + user.email, flush=True)
         print("Last char:\t\t" + str(user.last_char_id), flush=True)
