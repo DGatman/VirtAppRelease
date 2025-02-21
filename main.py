@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import List
 import sys
 import time
+import math
 
 try:
     import gspread
@@ -222,7 +223,7 @@ if __name__ == "__main__":
                             sheet.update_cell(row_index, 4, "Gold")
                         elif profile.vip_level == 3:
                             sheet.update_cell(row_index, 4, "Platinum")
-                        sheet.update_cell(row_index, 5, round((profile.vip_expire_at - time.time()) / 86400))
+                        sheet.update_cell(row_index, 5, math.ceil((profile.vip_expire_at - time.time()) / 86400))
                     sheet.update_cell(row_index, 7, profile.cash+profile.bank)
                     if profile.house or profile.apartment:
                         sheet.update_cell(row_index, 11, "Квартира")
