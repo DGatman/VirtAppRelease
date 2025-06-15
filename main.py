@@ -40,7 +40,8 @@ server_names = {
     18: "18.Hawick",
     19: "19.Grapeseed",
     20: "20.Murrieta",
-    21: "21.Vespucci"
+    21: "21.Vespucci",
+    22: "22.Milton"
 }
 
 
@@ -155,7 +156,7 @@ def get_profiles(login, password):
 
     profiles: List[Profile] = []
     # Getting profiles
-    for x in range(1, 22):
+    for x in range(1, 23):
         url = "https://gta5rp.com/api/V2/users/chars/" + str(x)
         headers = {
             'x-access-token': token
