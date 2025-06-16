@@ -120,7 +120,10 @@ if __name__ == "__main__":
             if profile.is_online:
                 if profile.apartment or profile.house:
                     print("1", flush=True)
-                sys.exit(profile.lvl)
+                    sys.exit(0)
+                else:
+                    print("0", flush=True)
+                    sys.exit(0)
         print("Profile wasn't founded", flush=True)
         sys.exit(0)
     else:
