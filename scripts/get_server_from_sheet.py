@@ -7,11 +7,11 @@ try:
     from google.oauth2.service_account import Credentials  # Пример библиотеки
 except ImportError:
     print("Некоторые библиотеки не установлены. Устанавливаю...", flush=True)
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "../requirements.txt"])
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
 except ValueError:
     print("Некорректно установленные библиотеки. Переустанавливаю...", flush=True)
-    subprocess.check_call([sys.executable, "-m", "pip", "uninstall", "-r", "../requirements.txt"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "../requirements.txt"])
+    subprocess.check_call([sys.executable, "-m", "pip", "uninstall", "-r", "requirements.txt"])
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
 
 
 def main(pc_name):
@@ -19,7 +19,7 @@ def main(pc_name):
     name = sys.argv[1]
     SCOPE = ["https://spreadsheets.google.com/feeds",
              "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_file("../credentials.json", scopes=SCOPE)
+    creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPE)
     client = gspread.authorize(creds)
 
     # Открываем таблицу и лист "Общая"
