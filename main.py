@@ -193,6 +193,27 @@ if __name__ == "__main__":
         mode = sys.argv[4]
         send_to_google_sheet(row_name, value, col, mode)
 
+    if len(sys.argv) == 2:
+        name = sys.argv[1]
+        SCOPE = ["https://spreadsheets.google.com/feeds",
+                 "https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPE)
+        client = gspread.authorize(creds)
+
+        # Открываем таблицу и лист "Общая"
+        sheet = client.open("Учет виртов").worksheet("Total")
+        pc_name = sheet.col_values(1)
+        block = sheet.col_values(15)
+        ban = sheet.col_values(16)
+        for row_index, pc in enumerate(pc_name, start = 1):
+            if pc == name:
+                if block[row_index - 1] != "" or ban[row_index - 1] != "":
+                    print(block[row_index - 1])
+                    print(ban[row_index - 1])
+                    print("1", flush=True)
+                else:
+                    print("0", flush=True)
+
     elif len(sys.argv) == 3:
         login = sys.argv[1]
         password = sys.argv[2]
