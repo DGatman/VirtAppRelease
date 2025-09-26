@@ -207,7 +207,7 @@ if __name__ == "__main__":
         ban = sheet.col_values(16)
         for row_index, pc in enumerate(pc_name, start = 1):
             if pc == name:
-                if block[row_index - 1] != "" or ban[row_index - 1] != "":
+                if (len(block) >= row_index and block[row_index - 1] != "") or (len(ban) >= row_index and [row_index - 1] != ""):
                     print(block[row_index - 1])
                     print(ban[row_index - 1])
                     print("1", flush=True)
