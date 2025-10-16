@@ -66,10 +66,10 @@ def main():
             year, month, day, hour, minute, second = get_moscow_time(retries=3, delay=5)
             print(f"Устанавливаю системное время: {day:02}.{month:02}.{year} {hour:02}:{minute:02}:{second:02}")
             set_system_time(year, month, day, hour, minute, second)
-            print("✅ Системное время успешно обновлено.")
+            print("Системное время успешно обновлено.")
             break
         except Exception as e:
-            print("❌ Ошибка:", e)
+            print("Ошибка:", e)
             print("Попробуем снова через 5 секунд...")
             time.sleep(5)
 
