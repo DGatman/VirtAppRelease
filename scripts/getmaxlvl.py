@@ -19,7 +19,7 @@ def main(pc_name):
     name = sys.argv[1]
     SCOPE = ["https://spreadsheets.google.com/feeds",
              "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPE)
+    creds = Credentials.from_service_account_file("..\credentials.json", scopes=SCOPE)
     client = gspread.authorize(creds)
 
     # Открываем таблицу и лист "Общая"
