@@ -1,0 +1,70 @@
+# Игнорируем build директории
+build/
+out/
+cmake-build-*/
+
+# Игнорируем IDE файлы
+.vs/
+.vscode/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+.idea/
+
+# Игнорируем скомпилированные файлы
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+*.ilk
+*.exp
+
+# Игнорируем временные файлы
+*.log
+*.tmp
+*.temp
+logs.txt
+
+# Игнорируем конфигурационные файлы с секретами
+config/config.txt
+credentials.json
+*.json
+
+# Игнорируем скриншоты
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+Screenshot.*
+
+# Игнорируем CMake кэш
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Игнорируем Python кэш
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+
+# Игнорируем системные файлы
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Игнорируем большие файлы данных (но оставляем структуру)
+data/tessdata/*.traineddata
+
+# Игнорируем старые директории (если еще не удалены)
+Bot/
+VirtAppCMake/
