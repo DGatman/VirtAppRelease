@@ -1462,6 +1462,7 @@ int main() {
 	bool ruletka = true;
 	bool ruletka_user_disabled = false; // Флаг: пользователь вручную выключил рулетку
 	int previous_lvl = 0; // Предыдущий уровень для отслеживания достижения 3 лвл
+	int current_lvl_global = 0; // Глобальная переменная для хранения текущего уровня
 	int max_lvl_int = 5; // Максимальный уровень из таблицы (по умолчанию 5)
 	bool relogin = true;
 	bool forceRelogin = false;
@@ -3633,6 +3634,7 @@ int main() {
 	if (!lvl.empty() && !filterDigits(lvl).empty())
 	{
 		int current_lvl = stoi(filterDigits(lvl));
+		current_lvl_global = current_lvl; // Сохраняем в глобальную переменную
 		bot.getApi().sendMessage(517005065, "Lvl is " + lvl, false, 0, keyboardWithLayout);
 		
 		// Вывод информации об уровне
@@ -3770,6 +3772,7 @@ int main() {
 			if (!lvl.empty() && !filterDigits(lvl).empty())
 			{
 				int current_lvl = stoi(filterDigits(lvl));
+				current_lvl_global = current_lvl; // Сохраняем в глобальную переменную
 				bot.getApi().sendMessage(517005065, "Lvl is " + lvl, false, 0, keyboardWithLayout);
 				
 				// Логика рулетки: при lvl >= 3 ВКЛ, при lvl < 3 ВЫКЛ
@@ -3845,68 +3848,12 @@ int main() {
 			&& ruletka)*/
 		
 		// ═══════════════════════════════════════════════════════════════════════════
-		// PRESENT TAKING - Проверка и забор подарков (работает НЕЗАВИСИМО от рулетки!)
+		// PRESENT TAKING - Подарки работают ТОЛЬКО вместе с рулеткой!
+		// Если рулетка выключена (lvl < 3), подарки тоже не забираем
 		// ═══════════════════════════════════════════════════════════════════════════
-		if (present_activity && !ruletka)
-		{
-			// Подарки проверяются ТОЛЬКО когда рулетка выключена
-			// Когда рулетка включена, подарки проверяются в блоке рулетки
-			printInfo("Checking presents (ruletka OFF mode)...");
-			logprint("Checking presents (ruletka OFF mode)...", currentTm);
-			
-			interception_send(context, device, (InterceptionStroke*)&f10_down, 1);
-			Sleep(300);
-			interception_send(context, device, (InterceptionStroke*)&f10_up, 1);
-			Sleep(10000);
-			
-			// Кликаем на вкладку подарков
-			mouse_leftClick(context, mouseDevice, 458, 94);
-			Sleep(10000);
-			
-			// Проверяем есть ли кнопка забрать подарок
-			if (scan.checkPixel(720, 500, 193, 26, 33))
-			{
-				printOK("Present button found! Taking present...");
-				logprint("Present button found! Taking present...", currentTm);
-				mouse_leftClick(context, mouseDevice, 720, 500);
-				Sleep(10000);
-				mouse_leftClick(context, mouseDevice, 720, 500);
-				Sleep(3000);
-				scan.makeScreenshot();
-				for (string id : tgListLoging)
-				{
-					int wait = 0;
-					while (wait < 5)
-					{
-						try
-						{
-							bot.getApi().sendPhoto(id, InputFile::fromFile(photoFilePath, photoMimeType), "Present was taken (ruletka OFF)", 0, nullptr, "", true);
-							break;
-						}
-						catch (const std::exception& e)
-						{
-							printError("Telegram connection failed: " + (string)e.what());
-							logprint("\nNO CONNECTION WITH TELEGRAM.SCREENSHOT WASN'T SENDED\nError: " + (string)e.what(), currentTm);
-						}
-						wait++;
-						Sleep(1000);
-					}
-				}
-			}
-			else
-			{
-				printDebug("No present available");
-				logprint("No present available", currentTm);
-			}
-			
-			// Закрываем меню F10
-			mouse_leftClick(context, mouseDevice, 1158, 100);
-			Sleep(3000);
-			interception_send(context, device, (InterceptionStroke*)&esc_down, 1);
-			Sleep(300);
-			interception_send(context, device, (InterceptionStroke*)&esc_up, 1);
-			Sleep(5000);
-		}
+		// УБРАНО: Отдельный блок подарков когда рулетка выключена
+		// Подарки теперь забираются ТОЛЬКО в блоке рулетки (когда ruletka=true и lvl >= 3)
+		// ═══════════════════════════════════════════════════════════════════════════
 		
 		//Ruletka
 		if (checkSpin() && ruletka)
