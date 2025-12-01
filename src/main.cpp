@@ -1612,16 +1612,22 @@ int main() {
 
 
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// TELEGRAM BOT - Улучшенная клавиатура с эмодзи (2025)
+	// ═══════════════════════════════════════════════════════════════════════════
 	ReplyKeyboardMarkup::Ptr keyboardOneCol(new ReplyKeyboardMarkup);
 	createOneColumnKeyboard({ "Photo", "AFK", "Ruletka" }, keyboardOneCol);
 
 	ReplyKeyboardMarkup::Ptr keyboardWithLayout(new ReplyKeyboardMarkup);
 	createKeyboard({
-	  {"/photo"},
-	  {"/afk", "/ruletka"},
-		{"/vip"},
-		{"/restart"}
+		{"📸 /photo", "📊 /status"},
+		{"💤 /afk", "🎰 /ruletka"},
+		{"🎁 /vip", "⭐ /lvl"},
+		{"🔄 /restart", "❓ /help"}
 		}, keyboardWithLayout);
+	
+	// Время запуска для uptime
+	auto botStartTime = chrono::steady_clock::now();
 
 	bot.getEvents().onCommand("start", [&bot, &keyboardWithLayout, &timeout](Message::Ptr message) {
 		if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout * 2)
@@ -1636,7 +1642,14 @@ int main() {
 			bot.getApi().sendSticker(message->chat->id, "CAACAgEAAxkBAAExWJRnnoCj6G2IwoOoeyqX4CRurvrfLwACkQEAAt96sUfMX1uymPvn9jYE");
 			return;
 		}
-		bot.getApi().sendMessage(message->chat->id, ((string)"START " + bot.getApi().getMe()->username.c_str()), false, 0, keyboardWithLayout);
+		string welcomeMsg = 
+			"🚀 VIRTAPP ЗАПУЩЕН!\n"
+			"━━━━━━━━━━━━━━━━━━━━━\n"
+			"🤖 Бот: @" + bot.getApi().getMe()->username + "\n\n"
+			"📋 Используй /help для списка команд\n"
+			"📊 Используй /status для статуса\n\n"
+			"✨ Добро пожаловать!";
+		bot.getApi().sendMessage(message->chat->id, welcomeMsg, false, 0, keyboardWithLayout);
 		});
 	bot.getEvents().onCommand("gpu", [&bot, &keyboardWithLayout, &timeout](Message::Ptr message) {
 		if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout * 2)
@@ -1998,9 +2011,16 @@ int main() {
 			return;
 		}
 		scan.makeScreenshot();
+		string photoCaption = 
+			"📸 СКРИНШОТ\n"
+			"━━━━━━━━━━━━━━━━\n"
+			"🤖 @" + bot.getApi().getMe()->username + "\n"
+			"📍 " + status + "\n"
+			"💤 AFK: " + (afk ? "✅" : "❌") + "\n"
+			"🎰 Ruletka: " + (ruletka ? "✅" : "❌");
 		try
 		{
-			bot.getApi().sendPhoto(message->chat->id, InputFile::fromFile(photoFilePath, photoMimeType), bot.getApi().getMe()->username.c_str() + (string)"\n" + status + (string)"\nAFK: " + (afk ? "ON" : "OFF") + (string)"\nRuletka: " + (ruletka ? "ON" : "OFF"), 0, keyboardWithLayout);
+			bot.getApi().sendPhoto(message->chat->id, InputFile::fromFile(photoFilePath, photoMimeType), photoCaption, 0, keyboardWithLayout);
 		}
 		catch (const std::exception& e)
 		{
@@ -2126,7 +2146,10 @@ int main() {
 				bot.getApi().sendSticker(message->chat->id, "CAACAgEAAxkBAAExWJRnnoCj6G2IwoOoeyqX4CRurvrfLwACkQEAAt96sUfMX1uymPvn9jYE");
 				return;
 			}
-			bot.getApi().sendMessage(message->chat->id, (string)"Afk is " + (afk ? "OFF" : "ON"), false, 0, keyboardWithLayout);
+			string afkStatus = afk ? 
+				"💤 AFK: ❌ ВЫКЛЮЧЕН\n━━━━━━━━━━━━━━━━\nРежим AFK отключён" : 
+				"💤 AFK: ✅ ВКЛЮЧЕН\n━━━━━━━━━━━━━━━━\nРежим AFK активирован";
+			bot.getApi().sendMessage(message->chat->id, afkStatus, false, 0, keyboardWithLayout);
 			afk = !afk;
 		});
 	bot.getEvents().onCommand("ruletka", [&bot, &ruletka, &ruletka_user_disabled, &keyboardWithLayout, &timeout](Message::Ptr message)
@@ -2143,7 +2166,10 @@ int main() {
 				bot.getApi().sendSticker(message->chat->id, "CAACAgEAAxkBAAExWJRnnoCj6G2IwoOoeyqX4CRurvrfLwACkQEAAt96sUfMX1uymPvn9jYE");
 				return;
 			}
-			bot.getApi().sendMessage(message->chat->id, (string)"Ruletka is " + (ruletka ? "OFF" : "ON"), false, 0, keyboardWithLayout);
+			string ruletkaStatus = ruletka ? 
+				"🎰 Рулетка: ❌ ВЫКЛЮЧЕНА\n━━━━━━━━━━━━━━━━━━\n⚠️ Рулетка отключена вручную" : 
+				"🎰 Рулетка: ✅ ВКЛЮЧЕНА\n━━━━━━━━━━━━━━━━━━\n🎲 Рулетка активирована!";
+			bot.getApi().sendMessage(message->chat->id, ruletkaStatus, false, 0, keyboardWithLayout);
 			ruletka = !ruletka;
 			// Запоминаем что пользователь выключил рулетку вручную
 			ruletka_user_disabled = !ruletka;
@@ -2162,7 +2188,7 @@ int main() {
 				bot.getApi().sendSticker(message->chat->id, "CAACAgEAAxkBAAExWJRnnoCj6G2IwoOoeyqX4CRurvrfLwACkQEAAt96sUfMX1uymPvn9jYE");
 				return;
 			}
-			bot.getApi().sendMessage(message->chat->id, "Relogin forced!", false, 0, keyboardWithLayout);
+			bot.getApi().sendMessage(message->chat->id, "🔄 Принудительный релогин...\n━━━━━━━━━━━━━━━━━\n⏳ Выполняется перезаход", false, 0, keyboardWithLayout);
 			forceRelogin = true;
 		});
 	bot.getEvents().onCommand("restart", [&bot, &forceRelogin, &keyboardWithLayout, &timeout](Message::Ptr message)
@@ -2179,7 +2205,7 @@ int main() {
 				bot.getApi().sendSticker(message->chat->id, "CAACAgEAAxkBAAExWJRnnoCj6G2IwoOoeyqX4CRurvrfLwACkQEAAt96sUfMX1uymPvn9jYE");
 				return;
 			}
-			bot.getApi().sendMessage(message->chat->id, "Restart forced!", false, 0, keyboardWithLayout);
+			bot.getApi().sendMessage(message->chat->id, "🔄 ПЕРЕЗАГРУЗКА PC\n━━━━━━━━━━━━━━━━━\n⚠️ Компьютер перезагрузится\n   через 5 секунд...", false, 0, keyboardWithLayout);
 			system("shutdown /r /t 5");
 		});
 	bot.getEvents().onCommand("sysinfo", [&bot, &timeout](Message::Ptr message)
@@ -2257,13 +2283,204 @@ int main() {
 			string lvl = exec(command.c_str());
 			if (!filterDigits(lvl).empty())
 			{
-				bot.getApi().sendMessage(message->chat->id, "Lvl is " + lvl, false, 0, keyboardWithLayout);
+				bot.getApi().sendMessage(message->chat->id, "⭐ Уровень: " + lvl, false, 0, keyboardWithLayout);
 			}
 			else
 			{
-				bot.getApi().sendMessage(message->chat->id, "Lvl wasn't detected(" + lvl + ")", false, 0, keyboardWithLayout);
+				bot.getApi().sendMessage(message->chat->id, "❌ Уровень не определён (" + lvl + ")", false, 0, keyboardWithLayout);
 			}
 		});
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// НОВЫЕ КОМАНДЫ 2025 - /help, /status, /menu, /ping, /uptime
+	// ═══════════════════════════════════════════════════════════════════════════
+	
+	// Команда /help - справка по всем командам
+	bot.getEvents().onCommand("help", [&bot, &keyboardWithLayout, &timeout](Message::Ptr message) {
+		if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
+		{
+			cout << "Ignored command due the timeout!" << endl;
+			return;
+		}
+		if (find(tgListSecurity.begin(), tgListSecurity.end(), to_string(message->from->id)) == tgListSecurity.end())
+		{
+			bot.getApi().sendMessage(message->chat->id, "You don't have permission to use this bot");
+			return;
+		}
+		string helpText = 
+			"╔═══════════════════════════════════╗\n"
+			"║     📚 VIRTAPP HELP v3.0          ║\n"
+			"╠═══════════════════════════════════╣\n"
+			"║                                   ║\n"
+			"║  📊 ИНФОРМАЦИЯ                    ║\n"
+			"║  /status  - Полный статус         ║\n"
+			"║  /photo   - Скриншот экрана       ║\n"
+			"║  /lvl     - Текущий уровень       ║\n"
+			"║  /log     - Последние логи        ║\n"
+			"║  /sysinfo - Системная информация  ║\n"
+			"║                                   ║\n"
+			"║  ⚙️ УПРАВЛЕНИЕ                    ║\n"
+			"║  /afk     - Вкл/выкл AFK режим    ║\n"
+			"║  /ruletka - Вкл/выкл рулетку      ║\n"
+			"║  /vip     - Открыть VIP меню      ║\n"
+			"║  /bp      - Battle Pass           ║\n"
+			"║  /dp      - Donator Pass          ║\n"
+			"║                                   ║\n"
+			"║  🛠️ СИСТЕМА                       ║\n"
+			"║  /restart - Перезагрузка PC       ║\n"
+			"║  /update  - Обновить бота         ║\n"
+			"║  /config  - Показать конфиг       ║\n"
+			"║  /ping    - Проверка связи        ║\n"
+			"║  /uptime  - Время работы          ║\n"
+			"║                                   ║\n"
+			"║  📁 ФАЙЛЫ                         ║\n"
+			"║  /getlogfile - Скачать логи       ║\n"
+			"║  /photofile  - Фото файлом        ║\n"
+			"║  /setconfig  - Изменить конфиг    ║\n"
+			"║  /creds      - Изменить creds     ║\n"
+			"║                                   ║\n"
+			"║  🔧 ОТЛАДКА                       ║\n"
+			"║  /cmd       - Выполнить команду   ║\n"
+			"║  /hwid      - Показать HWID       ║\n"
+			"║  /gpu       - Информация о GPU    ║\n"
+			"║  /cad       - Ctrl+Alt+Del        ║\n"
+			"║  /fps       - Текущий FPS         ║\n"
+			"║                                   ║\n"
+			"╚═══════════════════════════════════╝";
+		bot.getApi().sendMessage(message->chat->id, helpText, false, 0, keyboardWithLayout);
+	});
+
+	// Команда /status - полная статус-карточка
+	bot.getEvents().onCommand("status", [&bot, &keyboardWithLayout, &timeout, &afk, &ruletka, &status, &login, &PCName, &botStartTime, &currentTm](Message::Ptr message) {
+		if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
+		{
+			cout << "Ignored command due the timeout!" << endl;
+			return;
+		}
+		if (find(tgListSecurity.begin(), tgListSecurity.end(), to_string(message->from->id)) == tgListSecurity.end())
+		{
+			bot.getApi().sendMessage(message->chat->id, "You don't have permission to use this bot");
+			return;
+		}
+		
+		// Получаем uptime
+		auto now = chrono::steady_clock::now();
+		auto uptime = chrono::duration_cast<chrono::minutes>(now - botStartTime).count();
+		int hours = uptime / 60;
+		int mins = uptime % 60;
+		
+		// Получаем уровень
+		string command = "scripts\\getlvl.py " + login + " Naguibs1337228";
+		string lvl = exec(command.c_str());
+		if (lvl.empty() || filterDigits(lvl).empty()) lvl = "?";
+		
+		// Получаем память
+		MEMORYSTATUSEX memInfo;
+		memInfo.dwLength = sizeof(MEMORYSTATUSEX);
+		GlobalMemoryStatusEx(&memInfo);
+		int memPercent = (int)memInfo.dwMemoryLoad;
+		
+		ostringstream oss;
+		oss << "╔═══════════════════════════════════╗\n";
+		oss << "║     🎮 VIRTAPP STATUS v3.0        ║\n";
+		oss << "╠═══════════════════════════════════╣\n";
+		oss << "║ 🖥️ PC: " << left << setw(26) << PCName << "║\n";
+		oss << "║ 👤 Account: " << left << setw(22) << login << "║\n";
+		oss << "║ 📍 Status: " << left << setw(23) << status << "║\n";
+		oss << "║ ⭐ Level: " << left << setw(24) << lvl << "║\n";
+		oss << "╠═══════════════════════════════════╣\n";
+		oss << "║ 💤 AFK:      " << (afk ? "✅ ON " : "❌ OFF") << "                 ║\n";
+		oss << "║ 🎰 Ruletka: " << (ruletka ? "✅ ON " : "❌ OFF") << "                 ║\n";
+		oss << "╠═══════════════════════════════════╣\n";
+		oss << "║ ⏱️ Uptime: " << hours << "h " << mins << "m" << "                   ║\n";
+		oss << "║ 💾 RAM: " << memPercent << "%                        ║\n";
+		oss << "╚═══════════════════════════════════╝";
+		
+		bot.getApi().sendMessage(message->chat->id, oss.str(), false, 0, keyboardWithLayout);
+	});
+
+	// Команда /menu - главное меню с категориями
+	bot.getEvents().onCommand("menu", [&bot, &keyboardWithLayout, &timeout](Message::Ptr message) {
+		if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
+		{
+			cout << "Ignored command due the timeout!" << endl;
+			return;
+		}
+		if (find(tgListSecurity.begin(), tgListSecurity.end(), to_string(message->from->id)) == tgListSecurity.end())
+		{
+			bot.getApi().sendMessage(message->chat->id, "You don't have permission to use this bot");
+			return;
+		}
+		string menuText = 
+			"🎮 ГЛАВНОЕ МЕНЮ VIRTAPP\n"
+			"━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+			"📊 СТАТУС\n"
+			"├ /status - Полный статус\n"
+			"├ /photo  - Скриншот\n"
+			"└ /lvl    - Уровень\n\n"
+			"⚙️ УПРАВЛЕНИЕ\n"
+			"├ /afk     - AFK режим\n"
+			"├ /ruletka - Рулетка\n"
+			"└ /vip     - VIP меню\n\n"
+			"🛠️ СИСТЕМА\n"
+			"├ /restart - Перезагрузка\n"
+			"├ /sysinfo - Системная инфо\n"
+			"└ /config  - Конфигурация\n\n"
+			"❓ /help - Все команды";
+		bot.getApi().sendMessage(message->chat->id, menuText, false, 0, keyboardWithLayout);
+	});
+
+	// Команда /ping - проверка связи
+	bot.getEvents().onCommand("ping", [&bot, &keyboardWithLayout, &timeout](Message::Ptr message) {
+		if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
+		{
+			cout << "Ignored command due the timeout!" << endl;
+			return;
+		}
+		if (find(tgListSecurity.begin(), tgListSecurity.end(), to_string(message->from->id)) == tgListSecurity.end())
+		{
+			bot.getApi().sendMessage(message->chat->id, "You don't have permission to use this bot");
+			return;
+		}
+		auto now = chrono::system_clock::now();
+		auto nowSec = chrono::duration_cast<chrono::seconds>(now.time_since_epoch()).count();
+		int latency = nowSec - message->date;
+		
+		ostringstream oss;
+		oss << "🏓 PONG!\n";
+		oss << "━━━━━━━━━━━━━━━━\n";
+		oss << "✅ Бот активен\n";
+		oss << "⏱️ Задержка: " << latency << " сек";
+		bot.getApi().sendMessage(message->chat->id, oss.str(), false, 0, keyboardWithLayout);
+	});
+
+	// Команда /uptime - время работы
+	bot.getEvents().onCommand("uptime", [&bot, &keyboardWithLayout, &timeout, &botStartTime](Message::Ptr message) {
+		if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
+		{
+			cout << "Ignored command due the timeout!" << endl;
+			return;
+		}
+		if (find(tgListSecurity.begin(), tgListSecurity.end(), to_string(message->from->id)) == tgListSecurity.end())
+		{
+			bot.getApi().sendMessage(message->chat->id, "You don't have permission to use this bot");
+			return;
+		}
+		auto now = chrono::steady_clock::now();
+		auto uptimeMin = chrono::duration_cast<chrono::minutes>(now - botStartTime).count();
+		int days = uptimeMin / 1440;
+		int hours = (uptimeMin % 1440) / 60;
+		int mins = uptimeMin % 60;
+		
+		ostringstream oss;
+		oss << "⏱️ UPTIME\n";
+		oss << "━━━━━━━━━━━━━━━━\n";
+		if (days > 0) oss << "📅 Дней: " << days << "\n";
+		oss << "🕐 Часов: " << hours << "\n";
+		oss << "🕑 Минут: " << mins;
+		bot.getApi().sendMessage(message->chat->id, oss.str(), false, 0, keyboardWithLayout);
+	});
+
 	bot.getEvents().onAnyMessage([&bot, &cmd, &awaitingConfigContent, &awaitingCredentialsContent, &rename, &timeout](Message::Ptr message)
 		{
 			if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
