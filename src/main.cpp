@@ -762,7 +762,7 @@ bool checkQueue()
 
 int main() {
 	
-	string version = "v2.3";
+	string version = "v2.6";  // Рулетка: lvl>=3 ВКЛ, lvl<3 ВЫКЛ. AFK: lvl>=5 ВЫКЛ
 	string status = "Baldeet";
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 	void* program_instance = try_open_single_program("407637B6-98D3-4EFC-A838-40BBB5204CF1");
@@ -858,6 +858,8 @@ int main() {
 	bool direction = true;
 	bool afk = false;
 	bool ruletka = true;
+	bool ruletka_user_disabled = false; // Флаг: пользователь вручную выключил рулетку
+	int previous_lvl = 0; // Предыдущий уровень для отслеживания достижения 3 лвл
 	bool relogin = true;
 	bool forceRelogin = false;
 	bool cmd = false;
@@ -939,7 +941,8 @@ int main() {
 		else
 		{
 			afk = false;
-			ruletka = true;
+			// НЕ включаем рулетку автоматически при старте — она уже true по умолчанию
+			// ruletka включится автоматически при достижении 3 лвл
 		}
 	}
 	if (!config["PCNAME"].empty())
@@ -1509,7 +1512,7 @@ int main() {
 			bot.getApi().sendMessage(message->chat->id, (string)"Afk is " + (afk ? "OFF" : "ON"), false, 0, keyboardWithLayout);
 			afk = !afk;
 		});
-	bot.getEvents().onCommand("ruletka", [&bot, &ruletka, &keyboardWithLayout, &timeout](Message::Ptr message)
+	bot.getEvents().onCommand("ruletka", [&bot, &ruletka, &ruletka_user_disabled, &keyboardWithLayout, &timeout](Message::Ptr message)
 		{
 			if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
 			{
@@ -1525,6 +1528,8 @@ int main() {
 			}
 			bot.getApi().sendMessage(message->chat->id, (string)"Ruletka is " + (ruletka ? "OFF" : "ON"), false, 0, keyboardWithLayout);
 			ruletka = !ruletka;
+			// Запоминаем что пользователь выключил рулетку вручную
+			ruletka_user_disabled = !ruletka;
 		});
 	bot.getEvents().onCommand("forcerelogin", [&bot, &forceRelogin, &keyboardWithLayout, &timeout](Message::Ptr message)
 		{
@@ -1881,6 +1886,8 @@ int main() {
 				if (GetKeyState(VK_F7) & 0x8000)
 				{
 					ruletka = !ruletka;
+					// Запоминаем что пользователь выключил рулетку вручную
+					ruletka_user_disabled = !ruletka;
 					ruletka_is = ruletka ? "is on" : "is off";
 					logprint("Ruletka " + ruletka_is, currentTm);
 					//cout << "Ruletka " << ruletka_is << ".\n";
@@ -2598,7 +2605,7 @@ int main() {
 				}
 			}
 			Sleep(2000);
-			waitingphone == 0;
+			waitingphone = 0;
 			while ((!scan.checkPixel(986, 173, 0, 0, 0) || !scan.checkPixel(1013, 292, 52, 199, 89)) && waitingphone <= 20)//Waiting bank
 			{
 				logprint("Click Bank", currentTm);
@@ -2606,7 +2613,7 @@ int main() {
 				Sleep(15000);
 				waitingphone++;
 			}
-			waitingphone == 0;
+			waitingphone = 0;
 			while ((!scan.checkPixel(1021, 218, 28, 28, 30) || !scan.checkPixel(1193, 405, 28, 28, 30)) && waitingphone <= 20)//Waiting phone pay screen
 			{
 				mouse_leftClick(context, mouseDevice, 1200, 380);//phone
@@ -2728,24 +2735,32 @@ int main() {
 	string lvl = exec(command.c_str());
 	if (!lvl.empty() && !filterDigits(lvl).empty())
 	{
+		int current_lvl = stoi(filterDigits(lvl));
+		int max_lvl_int = stoi(filterDigits(max_lvl));
 		bot.getApi().sendMessage(517005065, "Lvl is " + lvl, false, 0, keyboardWithLayout);
-		if (stoi(filterDigits(lvl)) >= stoi(filterDigits(max_lvl)))
+		
+		// Логика рулетки: при lvl >= 3 ВКЛ, при lvl < 3 ВЫКЛ
+		if (current_lvl >= 3)
 		{
-			afk = false;
 			ruletka = true;
+			ruletka_user_disabled = false; // Сбрасываем флаг т.к. уровень достигнут
+			logprint("Lvl >= 3, ruletka enabled", currentTm);
 		}
 		else
 		{
-			if (stoi(filterDigits(lvl)) < stoi(filterDigits(max_lvl)) && stoi(filterDigits(lvl)) >= 3)
-			{
-				afk = true;
-				ruletka = true;
-			}
-			else
-			{
-				afk = true;
-				ruletka = false;
-			}
+			ruletka = false;
+			logprint("Lvl < 3, ruletka disabled", currentTm);
+		}
+		
+		// Логика AFK: при lvl >= max_lvl (или 5) ВЫКЛ, иначе ВКЛ
+		if (current_lvl >= max_lvl_int)
+		{
+			afk = false;
+			logprint("Lvl >= max_lvl, afk disabled", currentTm);
+		}
+		else
+		{
+			afk = true;
 		}
 	}
 	else
@@ -2827,24 +2842,31 @@ int main() {
 			string lvl = exec(command.c_str());
 			if (!lvl.empty() && !filterDigits(lvl).empty())
 			{
+				int current_lvl = stoi(filterDigits(lvl));
 				bot.getApi().sendMessage(517005065, "Lvl is " + lvl, false, 0, keyboardWithLayout);
-				if (stoi(filterDigits(lvl)) >= 5)
+				
+				// Логика рулетки: при lvl >= 3 ВКЛ, при lvl < 3 ВЫКЛ
+				if (current_lvl >= 3)
 				{
-					afk = false;
 					ruletka = true;
+					ruletka_user_disabled = false; // Сбрасываем флаг т.к. уровень достигнут
+					logprint("Lvl >= 3, ruletka enabled", currentTm);
 				}
 				else
 				{
-					if (stoi(filterDigits(lvl)) < 5 && stoi(filterDigits(lvl)) >= 3)
-					{
-						afk = true;
-						ruletka = true;
-					}
-					else
-					{
-						afk = true;
-						ruletka = false;
-					}
+					ruletka = false;
+					logprint("Lvl < 3, ruletka disabled", currentTm);
+				}
+				
+				// Логика AFK: при lvl >= 5 ВЫКЛ, иначе ВКЛ
+				if (current_lvl >= 5)
+				{
+					afk = false;
+					logprint("Lvl >= 5, afk disabled", currentTm);
+				}
+				else
+				{
+					afk = true;
 				}
 			}
 			else
@@ -2888,7 +2910,7 @@ int main() {
 				scan.checkPixel(1164, 96 + 60, 255, 255, 255))
 			&& ruletka)*/
 		//Ruletka
-		if (checkSpin())
+		if (checkSpin() && ruletka)
 		{
 			status = "Krutit";
 			//Checking fpslimit value
