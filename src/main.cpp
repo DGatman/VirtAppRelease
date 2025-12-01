@@ -1629,7 +1629,7 @@ int main() {
 	// Время запуска для uptime
 	auto botStartTime = chrono::steady_clock::now();
 
-	bot.getEvents().onCommand("start", [&bot, &keyboardWithLayout, &timeout](Message::Ptr message) {
+	bot.getEvents().onCommand("start", [&bot, &keyboardWithLayout, &timeout, &afk, &ruletka, &max_lvl_int](Message::Ptr message) {
 		if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout * 2)
 		{
 			cout << "Ignored command due the timeout!" << endl;
@@ -1643,11 +1643,15 @@ int main() {
 			return;
 		}
 		string welcomeMsg = 
-			"🚀 VIRTAPP ЗАПУЩЕН!\n"
-			"━━━━━━━━━━━━━━━━━━━━━\n"
+			"🚀 VIRTAPP v3.1 ЗАПУЩЕН!\n"
+			"━━━━━━━━━━━━━━━━━━━━━━━━\n"
 			"🤖 Бот: @" + bot.getApi().getMe()->username + "\n\n"
-			"📋 Используй /help для списка команд\n"
-			"📊 Используй /status для статуса\n\n"
+			"⚙️ ТЕКУЩИЕ НАСТРОЙКИ:\n"
+			"├ 💤 AFK: " + string(afk ? "✅ ВКЛ" : "❌ ВЫКЛ") + "\n"
+			"├ 🎰 Рулетка: " + string(ruletka ? "✅ ВКЛ" : "❌ ВЫКЛ") + "\n"
+			"└ 🎯 Цель: " + to_string(max_lvl_int) + " лвл\n\n"
+			"📋 /help - список команд\n"
+			"📊 /status - полный статус\n\n"
 			"✨ Добро пожаловать!";
 		bot.getApi().sendMessage(message->chat->id, welcomeMsg, false, 0, keyboardWithLayout);
 		});
@@ -2351,7 +2355,7 @@ int main() {
 	});
 
 	// Команда /status - полная статус-карточка
-	bot.getEvents().onCommand("status", [&bot, &keyboardWithLayout, &timeout, &afk, &ruletka, &status, &login, &PCName, &botStartTime, &currentTm](Message::Ptr message) {
+	bot.getEvents().onCommand("status", [&bot, &keyboardWithLayout, &timeout, &afk, &ruletka, &status, &login, &PCName, &botStartTime, &currentTm, &max_lvl_int](Message::Ptr message) {
 		if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
 		{
 			cout << "Ignored command due the timeout!" << endl;
@@ -2372,7 +2376,10 @@ int main() {
 		// Получаем уровень
 		string command = "scripts\\getlvl.py " + login + " Naguibs1337228";
 		string lvl = exec(command.c_str());
-		if (lvl.empty() || filterDigits(lvl).empty()) lvl = "?";
+		int current_lvl = 0;
+		if (!lvl.empty() && !filterDigits(lvl).empty()) {
+			current_lvl = stoi(filterDigits(lvl));
+		}
 		
 		// Получаем память
 		MEMORYSTATUSEX memInfo;
@@ -2380,20 +2387,34 @@ int main() {
 		GlobalMemoryStatusEx(&memInfo);
 		int memPercent = (int)memInfo.dwMemoryLoad;
 		
+		// Прогресс до max_lvl
+		int progress = (max_lvl_int > 0) ? min(100, (current_lvl * 100) / max_lvl_int) : 0;
+		string progressBar = "";
+		int filled = progress / 10;
+		for (int i = 0; i < 10; i++) {
+			progressBar += (i < filled) ? "█" : "░";
+		}
+		
 		ostringstream oss;
 		oss << "╔═══════════════════════════════════╗\n";
-		oss << "║     🎮 VIRTAPP STATUS v3.0        ║\n";
+		oss << "║     🎮 VIRTAPP STATUS v3.1        ║\n";
 		oss << "╠═══════════════════════════════════╣\n";
 		oss << "║ 🖥️ PC: " << left << setw(26) << PCName << "║\n";
 		oss << "║ 👤 Account: " << left << setw(22) << login << "║\n";
 		oss << "║ 📍 Status: " << left << setw(23) << status << "║\n";
-		oss << "║ ⭐ Level: " << left << setw(24) << lvl << "║\n";
 		oss << "╠═══════════════════════════════════╣\n";
-		oss << "║ 💤 AFK:      " << (afk ? "✅ ON " : "❌ OFF") << "                 ║\n";
-		oss << "║ 🎰 Ruletka: " << (ruletka ? "✅ ON " : "❌ OFF") << "                 ║\n";
+		oss << "║ ⭐ Level: " << current_lvl << " / " << max_lvl_int << "                      ║\n";
+		oss << "║ 📊 Progress: [" << progressBar << "] " << progress << "%  ║\n";
 		oss << "╠═══════════════════════════════════╣\n";
-		oss << "║ ⏱️ Uptime: " << hours << "h " << mins << "m" << "                   ║\n";
-		oss << "║ 💾 RAM: " << memPercent << "%                        ║\n";
+		oss << "║ 💤 AFK:      " << (afk ? "✅ ON " : "❌ OFF");
+		if (current_lvl < max_lvl_int) oss << " (авто до " << max_lvl_int << " лвл)";
+		oss << "\n";
+		oss << "║ 🎰 Ruletka: " << (ruletka ? "✅ ON " : "❌ OFF");
+		if (current_lvl < 3) oss << " (с 3 лвл)";
+		oss << "\n";
+		oss << "╠═══════════════════════════════════╣\n";
+		oss << "║ ⏱️ Uptime: " << hours << "h " << mins << "m\n";
+		oss << "║ 💾 RAM: " << memPercent << "%\n";
 		oss << "╚═══════════════════════════════════╝";
 		
 		bot.getApi().sendMessage(message->chat->id, oss.str(), false, 0, keyboardWithLayout);
@@ -3598,6 +3619,15 @@ int main() {
 		logprint("Max level not found in table, using default: 5", currentTm);
 	}
 	
+	// ═══════════════════════════════════════════════════════════════
+	// ВЫВОД НАСТРОЕК AFK В КОНСОЛЬ
+	// ═══════════════════════════════════════════════════════════════
+	printSection("AFK SETTINGS");
+	printStatus("Target Level", to_string(max_lvl_int) + " (from " + ((!max_lvl.empty() && !filterDigits(max_lvl).empty()) ? "table" : "default") + ")", ConsoleColors::CYAN);
+	printInfo("AFK will be ENABLED until level " + to_string(max_lvl_int));
+	printInfo("After reaching target - AFK will be DISABLED");
+	printSectionEnd();
+	
 	string command = "scripts\\getlvl.py " + login + " Naguibs1337228";
 	string lvl = exec(command.c_str());
 	if (!lvl.empty() && !filterDigits(lvl).empty())
@@ -3627,18 +3657,27 @@ int main() {
 			logprint("Lvl < 3, ruletka disabled", currentTm);
 		}
 		
-		// Логика AFK: при lvl >= max_lvl (или 5) ВЫКЛ, иначе ВКЛ
+		// ═══════════════════════════════════════════════════════════════
+		// ЛОГИКА AFK: ПРИНУДИТЕЛЬНО ВКЛ если lvl < max_lvl
+		// ═══════════════════════════════════════════════════════════════
 		if (current_lvl >= max_lvl_int)
 		{
+			// Достигли целевого уровня - можно выключить AFK
 			afk = false;
 			printStatusBool("AFK Mode", false);
-			printInfo("Max level reached: AFK DISABLED");
-			logprint("Lvl >= max_lvl, afk disabled", currentTm);
+			printOK("TARGET REACHED! Level " + to_string(current_lvl) + " >= " + to_string(max_lvl_int));
+			printInfo("AFK DISABLED - target level reached");
+			logprint("Lvl >= max_lvl (" + to_string(max_lvl_int) + "), afk DISABLED", currentTm);
+			bot.getApi().sendMessage(517005065, "🎉 ЦЕЛЬ ДОСТИГНУТА!\n⭐ Уровень: " + to_string(current_lvl) + " / " + to_string(max_lvl_int) + "\n💤 AFK: ВЫКЛЮЧЕН", false, 0, keyboardWithLayout);
 		}
 		else
 		{
+			// Ещё не достигли - AFK ОБЯЗАТЕЛЬНО ВКЛЮЧЁН
 			afk = true;
 			printStatusBool("AFK Mode", true);
+			printWarn("AFK FORCED ON until level " + to_string(max_lvl_int));
+			printInfo("Progress: " + to_string(current_lvl) + " / " + to_string(max_lvl_int) + " (" + to_string((current_lvl * 100) / max_lvl_int) + "%)");
+			logprint("Lvl < max_lvl (" + to_string(max_lvl_int) + "), afk FORCED ON", currentTm);
 		}
 		printSectionEnd();
 	}
@@ -3746,15 +3785,22 @@ int main() {
 					logprint("Lvl < 3, ruletka disabled", currentTm);
 				}
 				
-				// Логика AFK: при lvl >= max_lvl ВЫКЛ, иначе ВКЛ
+				// ═══════════════════════════════════════════════════════════════
+				// ЛОГИКА AFK: ПРИНУДИТЕЛЬНО ВКЛ если lvl < max_lvl
+				// ═══════════════════════════════════════════════════════════════
 				if (current_lvl >= max_lvl_int)
 				{
+					// Достигли цели - AFK можно выключить
 					afk = false;
-					logprint("Lvl >= max_lvl (" + to_string(max_lvl_int) + "), afk disabled", currentTm);
+					logprint("TARGET REACHED! Lvl " + to_string(current_lvl) + " >= max_lvl (" + to_string(max_lvl_int) + "), afk DISABLED", currentTm);
+					bot.getApi().sendMessage(517005065, "🎉 ЦЕЛЬ ДОСТИГНУТА!\n⭐ Уровень: " + to_string(current_lvl) + " / " + to_string(max_lvl_int) + "\n💤 AFK: ВЫКЛЮЧЕН", false, 0, keyboardWithLayout);
 				}
 				else
 				{
+					// Ещё не достигли - AFK ОБЯЗАТЕЛЬНО ВКЛЮЧЁН
 					afk = true;
+					logprint("Progress: Lvl " + to_string(current_lvl) + " < max_lvl (" + to_string(max_lvl_int) + "), afk FORCED ON", currentTm);
+					bot.getApi().sendMessage(517005065, "📊 Прогресс: " + to_string(current_lvl) + " / " + to_string(max_lvl_int) + " лвл\n💤 AFK: ПРИНУДИТЕЛЬНО ВКЛ", false, 0, keyboardWithLayout);
 				}
 			}
 			else
