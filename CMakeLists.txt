@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(VirtApp)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 set(Boost_USE_MULTITHREADED ON)
  
 find_package(Threads REQUIRED)
@@ -12,17 +12,19 @@ find_package(Tesseract CONFIG REQUIRED)
 find_package(Boost COMPONENTS system REQUIRED)
 find_package(CURL)
 find_package(mailio CONFIG REQUIRED)
+find_package(TgBot CONFIG REQUIRED)
 
-# TODO: Update this path to point to your Interception library installation
-set(INTERCEPTION_INCLUDE_DIR "C:/path/to/Interception/library" CACHE PATH "Path to Interception include directory")
-set(INTERCEPTION_LIB "C:/path/to/Interception/library/x64/interception.lib" CACHE FILEPATH "Path to Interception library")
+# Interception library - установлена в C:/libs/interception
+set(INTERCEPTION_INCLUDE_DIR "C:/libs/interception/Interception/library" CACHE PATH "Path to Interception include directory")
+set(INTERCEPTION_LIB "C:/libs/interception/Interception/library/x64/interception.lib" CACHE FILEPATH "Path to Interception library")
 
-# TODO: Update this path to point to your TgBot library installation
-set(TGBOT_LIB "C:/src/vcpkg/packages/tgbot-cpp_x64-windows/lib/TgBot.lib" CACHE FILEPATH "Path to TgBot library")
+# SQLite Modern C++ header
+set(SQLITE_MODERN_CPP_DIR "C:/libs/sqlite_modern_cpp" CACHE PATH "Path to sqlite_modern_cpp header")
 
 include_directories(
     ${CMAKE_SOURCE_DIR}/src
     ${INTERCEPTION_INCLUDE_DIR}
+    ${SQLITE_MODERN_CPP_DIR}
     ${OPENSSL_INCLUDE_DIR}
     ${Boost_INCLUDE_DIRS}
 )
@@ -44,8 +46,8 @@ add_executable(VirtApp
 
 target_link_libraries(VirtApp 
     ${INTERCEPTION_LIB}
-    ${TGBOT_LIB}
-    mailio 
+    TgBot::TgBot
+    mailio::mailio 
     ${CMAKE_THREAD_LIBS_INIT} 
     ${OPENSSL_LIBRARIES} 
     ${Boost_LIBRARIES} 

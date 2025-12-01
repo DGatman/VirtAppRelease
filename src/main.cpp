@@ -21,11 +21,12 @@
 #include <WtsApi32.h>
 #include <vector>
 #include <Psapi.h>
-#include <sqlite_modern_cpp.h>
+// #include <sqlite_modern_cpp.h>  // Не используется в коде
 #include <tesseract/baseapi.h>
 #include <leptonica/allheaders.h>
 #include "VirtApp.h"
 #include "ScreenScaner.h"
+#include "DashboardUI.h"  // Dashboard UI v3.0
 #include <string>
 #include <sstream>
 #include <stdexcept>
@@ -639,7 +640,7 @@ std::string exec(const char* cmd) {
 string sendToDB(string PCName, string column, string value, string mode = "plus")
 {
 	string cmd = "main.py " + PCName + " " + value + " " + column + " " + mode;
-	if (filesystem::exists("credentials.json"))
+	if (std::filesystem::exists("credentials.json"))
 	{
 		return exec(cmd.c_str());
 	}
@@ -760,9 +761,599 @@ bool checkQueue()
 	return found;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENTERPRISE CONSOLE UI SYSTEM v2.0 - Windows Console API
+// Профессиональный вывод для enterprise-приложений 2025
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Цветовая схема (Windows Console API)
+namespace ConsoleColors {
+	const int BLACK = 0;
+	const int DARK_BLUE = 1;
+	const int DARK_GREEN = 2;
+	const int DARK_CYAN = 3;
+	const int DARK_RED = 4;
+	const int DARK_MAGENTA = 5;
+	const int DARK_YELLOW = 6;
+	const int GRAY = 7;
+	const int DARK_GRAY = 8;
+	const int BLUE = 9;
+	const int GREEN = 10;
+	const int CYAN = 11;
+	const int RED = 12;
+	const int MAGENTA = 13;
+	const int YELLOW = 14;
+	const int WHITE = 15;
+	
+	// Комбинации для фона
+	const int BG_BLUE = 16;
+	const int BG_GREEN = 32;
+	const int BG_CYAN = 48;
+	const int BG_RED = 64;
+}
+
+// Глобальный handle консоли для производительности
+static HANDLE g_hConsole = NULL;
+
+// Инициализация консоли с поддержкой расширенных цветов
+void initConsole() {
+	g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	// Установка кодовой страницы для корректного отображения
+	SetConsoleOutputCP(866); // DOS Cyrillic
+	
+	// Установка размера буфера консоли
+	CONSOLE_SCREEN_BUFFER_INFO csbi;
+	GetConsoleScreenBufferInfo(g_hConsole, &csbi);
+	
+	// Очистка консоли с черным фоном
+	COORD topLeft = {0, 0};
+	DWORD written;
+	DWORD length = csbi.dwSize.X * csbi.dwSize.Y;
+	FillConsoleOutputCharacter(g_hConsole, ' ', length, topLeft, &written);
+	FillConsoleOutputAttribute(g_hConsole, ConsoleColors::GRAY, length, topLeft, &written);
+	SetConsoleCursorPosition(g_hConsole, topLeft);
+}
+
+// Установка цвета текста
+inline void setColor(int color) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleTextAttribute(g_hConsole, color);
+}
+
+// Сброс цвета на стандартный
+inline void resetColor() {
+	setColor(ConsoleColors::GRAY);
+}
+
+// Получение текущего времени в формате строки
+string getCurrentTimeStr() {
+	time_t now = time(nullptr);
+	tm* ltm = localtime(&now);
+	char buffer[12];
+	strftime(buffer, sizeof(buffer), "%H:%M:%S", ltm);
+	return string(buffer);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// БАННЕР И ЗАГОЛОВКИ
+// ═══════════════════════════════════════════════════════════════════════════════
+
+void printBanner(const string& version) {
+	if (!g_hConsole) initConsole();
+	
+	cout << "\n";
+	
+	// Верхняя рамка
+	setColor(ConsoleColors::DARK_CYAN);
+	cout << "  ";
+	for (int i = 0; i < 68; i++) cout << "=";
+	cout << "\n";
+	
+	// Логотип VIRTAPP
+	setColor(ConsoleColors::CYAN);
+	cout << "  ||";
+	setColor(ConsoleColors::YELLOW);
+	cout << "  __      __ _        _      _                                  ";
+	setColor(ConsoleColors::CYAN);
+	cout << "||\n";
+	
+	cout << "  ||";
+	setColor(ConsoleColors::YELLOW);
+	cout << "  \\ \\    / /(_) _ __ | |_   / \\   _ __   _ __                   ";
+	setColor(ConsoleColors::CYAN);
+	cout << "||\n";
+	
+	cout << "  ||";
+	setColor(ConsoleColors::YELLOW);
+	cout << "   \\ \\  / / | || '__|| __| / _ \\ | '_ \\ | '_ \\                  ";
+	setColor(ConsoleColors::CYAN);
+	cout << "||\n";
+	
+	cout << "  ||";
+	setColor(ConsoleColors::YELLOW);
+	cout << "    \\ \\/ /  | || |   | |_ / ___ \\| |_) || |_) |                 ";
+	setColor(ConsoleColors::CYAN);
+	cout << "||\n";
+	
+	cout << "  ||";
+	setColor(ConsoleColors::YELLOW);
+	cout << "     \\__/   |_||_|    \\__/_/   \\_\\ .__/ | .__/                  ";
+	setColor(ConsoleColors::CYAN);
+	cout << "||\n";
+	
+	cout << "  ||";
+	setColor(ConsoleColors::YELLOW);
+	cout << "                                 |_|    |_|                     ";
+	setColor(ConsoleColors::CYAN);
+	cout << "||\n";
+	
+	// Разделитель
+	setColor(ConsoleColors::DARK_CYAN);
+	cout << "  ||";
+	for (int i = 0; i < 64; i++) cout << "-";
+	cout << "||\n";
+	
+	// Информация о приложении
+	setColor(ConsoleColors::CYAN);
+	cout << "  ||";
+	setColor(ConsoleColors::GREEN);
+	cout << "              GTA5RP Automation Bot - Enterprise Edition        ";
+	setColor(ConsoleColors::CYAN);
+	cout << "||\n";
+	
+	cout << "  ||";
+	setColor(ConsoleColors::WHITE);
+	cout << "                        Version: ";
+	setColor(ConsoleColors::YELLOW);
+	cout << version;
+	setColor(ConsoleColors::WHITE);
+	cout << "                             ";
+	setColor(ConsoleColors::CYAN);
+	cout << "||\n";
+	
+	cout << "  ||";
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "                   (c) 2024-2025 RootOne1337                    ";
+	setColor(ConsoleColors::CYAN);
+	cout << "||\n";
+	
+	cout << "  ||";
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "                    Build: " << __DATE__ << " " << __TIME__ << "                   ";
+	setColor(ConsoleColors::CYAN);
+	cout << "||\n";
+	
+	// Нижняя рамка
+	setColor(ConsoleColors::DARK_CYAN);
+	cout << "  ";
+	for (int i = 0; i < 68; i++) cout << "=";
+	cout << "\n\n";
+	
+	resetColor();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// СЕКЦИИ И БЛОКИ
+// ═══════════════════════════════════════════════════════════════════════════════
+
+void printSection(const string& title) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	cout << "\n";
+	setColor(ConsoleColors::CYAN);
+	cout << "  +";
+	setColor(ConsoleColors::DARK_CYAN);
+	for (int i = 0; i < 66; i++) cout << "-";
+	setColor(ConsoleColors::CYAN);
+	cout << "+\n";
+	
+	cout << "  |";
+	setColor(ConsoleColors::YELLOW);
+	cout << " >> " << title;
+	
+	// Заполнение пробелами до конца строки
+	int padding = 61 - (int)title.length();
+	for (int i = 0; i < padding; i++) cout << " ";
+	
+	setColor(ConsoleColors::CYAN);
+	cout << "|\n";
+	
+	cout << "  +";
+	setColor(ConsoleColors::DARK_CYAN);
+	for (int i = 0; i < 66; i++) cout << "-";
+	setColor(ConsoleColors::CYAN);
+	cout << "+\n";
+	
+	resetColor();
+}
+
+void printSectionEnd() {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	setColor(ConsoleColors::CYAN);
+	cout << "  +";
+	setColor(ConsoleColors::DARK_CYAN);
+	for (int i = 0; i < 66; i++) cout << "-";
+	setColor(ConsoleColors::CYAN);
+	cout << "+\n";
+	resetColor();
+}
+
+void printSubSection(const string& title) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "  |--- ";
+	setColor(ConsoleColors::WHITE);
+	cout << title << "\n";
+	resetColor();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// СТАТУСЫ И СООБЩЕНИЯ
+// ═══════════════════════════════════════════════════════════════════════════════
+
+void printStatus(const string& key, const string& value, int color = ConsoleColors::GREEN) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "  |  ";
+	setColor(ConsoleColors::WHITE);
+	cout << key;
+	
+	// Выравнивание по точкам
+	int dots = 25 - (int)key.length();
+	setColor(ConsoleColors::DARK_GRAY);
+	for (int i = 0; i < dots; i++) cout << ".";
+	cout << ": ";
+	
+	setColor(color);
+	cout << value << "\n";
+	resetColor();
+}
+
+void printStatusBool(const string& key, bool value, const string& trueText = "ON", const string& falseText = "OFF") {
+	printStatus(key, value ? trueText : falseText, value ? ConsoleColors::GREEN : ConsoleColors::RED);
+}
+
+void printOK(const string& message) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "  [";
+	setColor(ConsoleColors::GREEN);
+	cout << " OK ";
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "] ";
+	setColor(ConsoleColors::WHITE);
+	cout << message << "\n";
+	resetColor();
+}
+
+void printWarn(const string& message) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "  [";
+	setColor(ConsoleColors::YELLOW);
+	cout << "WARN";
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "] ";
+	setColor(ConsoleColors::YELLOW);
+	cout << message << "\n";
+	resetColor();
+}
+
+void printError(const string& message) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "  [";
+	setColor(ConsoleColors::RED);
+	cout << "FAIL";
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "] ";
+	setColor(ConsoleColors::RED);
+	cout << message << "\n";
+	resetColor();
+}
+
+void printInfo(const string& message) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "  [";
+	setColor(ConsoleColors::CYAN);
+	cout << "INFO";
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "] ";
+	setColor(ConsoleColors::WHITE);
+	cout << message << "\n";
+	resetColor();
+}
+
+void printDebug(const string& message) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "  [";
+	setColor(ConsoleColors::MAGENTA);
+	cout << "DBG ";
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "] " << message << "\n";
+	resetColor();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ПРОГРЕСС-БАР
+// ═══════════════════════════════════════════════════════════════════════════════
+
+void printProgress(const string& label, int current, int total, int barWidth = 40) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	float progress = (float)current / total;
+	int filled = (int)(progress * barWidth);
+	
+	setColor(ConsoleColors::WHITE);
+	cout << "  " << label << " [";
+	
+	setColor(ConsoleColors::GREEN);
+	for (int i = 0; i < filled; i++) cout << "#";
+	
+	setColor(ConsoleColors::DARK_GRAY);
+	for (int i = filled; i < barWidth; i++) cout << "-";
+	
+	setColor(ConsoleColors::WHITE);
+	cout << "] ";
+	setColor(ConsoleColors::YELLOW);
+	cout << (int)(progress * 100) << "%";
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << " (" << current << "/" << total << ")\r";
+	cout.flush();
+	resetColor();
+}
+
+void printProgressDone(const string& label) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	setColor(ConsoleColors::WHITE);
+	cout << "  " << label << " [";
+	setColor(ConsoleColors::GREEN);
+	for (int i = 0; i < 40; i++) cout << "#";
+	setColor(ConsoleColors::WHITE);
+	cout << "] ";
+	setColor(ConsoleColors::GREEN);
+	cout << "100% DONE                    \n";
+	resetColor();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ТАБЛИЦЫ
+// ═══════════════════════════════════════════════════════════════════════════════
+
+void printTableHeader(const vector<string>& headers, const vector<int>& widths) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	// Верхняя линия
+	setColor(ConsoleColors::CYAN);
+	cout << "  +";
+	for (size_t i = 0; i < headers.size(); i++) {
+		for (int j = 0; j < widths[i] + 2; j++) cout << "-";
+		cout << "+";
+	}
+	cout << "\n";
+	
+	// Заголовки
+	cout << "  |";
+	for (size_t i = 0; i < headers.size(); i++) {
+		setColor(ConsoleColors::YELLOW);
+		cout << " " << headers[i];
+		int pad = widths[i] - (int)headers[i].length();
+		for (int j = 0; j < pad; j++) cout << " ";
+		cout << " ";
+		setColor(ConsoleColors::CYAN);
+		cout << "|";
+	}
+	cout << "\n";
+	
+	// Разделитель
+	cout << "  +";
+	for (size_t i = 0; i < headers.size(); i++) {
+		for (int j = 0; j < widths[i] + 2; j++) cout << "=";
+		cout << "+";
+	}
+	cout << "\n";
+	resetColor();
+}
+
+void printTableRow(const vector<string>& cells, const vector<int>& widths, const vector<int>& colors) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	setColor(ConsoleColors::CYAN);
+	cout << "  |";
+	for (size_t i = 0; i < cells.size(); i++) {
+		setColor(colors.size() > i ? colors[i] : ConsoleColors::WHITE);
+		cout << " " << cells[i];
+		int pad = widths[i] - (int)cells[i].length();
+		for (int j = 0; j < pad; j++) cout << " ";
+		cout << " ";
+		setColor(ConsoleColors::CYAN);
+		cout << "|";
+	}
+	cout << "\n";
+	resetColor();
+}
+
+void printTableEnd(const vector<int>& widths) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	setColor(ConsoleColors::CYAN);
+	cout << "  +";
+	for (size_t i = 0; i < widths.size(); i++) {
+		for (int j = 0; j < widths[i] + 2; j++) cout << "-";
+		cout << "+";
+	}
+	cout << "\n";
+	resetColor();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ЛОГИРОВАНИЕ С ЦВЕТАМИ И КАТЕГОРИЯМИ
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum LogLevel {
+	LOG_DEBUG = 0,
+	LOG_INFO = 1,
+	LOG_SUCCESS = 2,
+	LOG_WARNING = 3,
+	LOG_ERROR = 4,
+	LOG_CRITICAL = 5
+};
+
+void logPrint(const string& message, LogLevel level = LOG_INFO) {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	// Временная метка
+	string timeStr = getCurrentTimeStr();
+	
+	setColor(ConsoleColors::DARK_GRAY);
+	cout << "  [" << timeStr << "] ";
+	
+	// Уровень лога
+	switch (level) {
+		case LOG_DEBUG:
+			setColor(ConsoleColors::MAGENTA);
+			cout << "[DEBUG] ";
+			setColor(ConsoleColors::DARK_GRAY);
+			break;
+		case LOG_INFO:
+			setColor(ConsoleColors::CYAN);
+			cout << "[INFO]  ";
+			setColor(ConsoleColors::WHITE);
+			break;
+		case LOG_SUCCESS:
+			setColor(ConsoleColors::GREEN);
+			cout << "[OK]    ";
+			setColor(ConsoleColors::WHITE);
+			break;
+		case LOG_WARNING:
+			setColor(ConsoleColors::YELLOW);
+			cout << "[WARN]  ";
+			setColor(ConsoleColors::YELLOW);
+			break;
+		case LOG_ERROR:
+			setColor(ConsoleColors::RED);
+			cout << "[ERROR] ";
+			setColor(ConsoleColors::RED);
+			break;
+		case LOG_CRITICAL:
+			setColor(ConsoleColors::RED | ConsoleColors::BG_RED);
+			cout << "[CRIT]  ";
+			setColor(ConsoleColors::RED);
+			break;
+	}
+	
+	cout << message << "\n";
+	resetColor();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// СПИННЕР ДЛЯ ОЖИДАНИЯ
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class Spinner {
+private:
+	const char* frames[4] = {"|", "/", "-", "\\"};
+	int currentFrame = 0;
+	string message;
+	bool running = false;
+	
+public:
+	void start(const string& msg) {
+		message = msg;
+		running = true;
+		currentFrame = 0;
+	}
+	
+	void update() {
+		if (!running) return;
+		if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+		
+		setColor(ConsoleColors::CYAN);
+		cout << "\r  [";
+		setColor(ConsoleColors::YELLOW);
+		cout << frames[currentFrame];
+		setColor(ConsoleColors::CYAN);
+		cout << "] ";
+		setColor(ConsoleColors::WHITE);
+		cout << message << "   ";
+		cout.flush();
+		
+		currentFrame = (currentFrame + 1) % 4;
+		resetColor();
+	}
+	
+	void stop(bool success = true) {
+		running = false;
+		if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+		
+		cout << "\r  [";
+		if (success) {
+			setColor(ConsoleColors::GREEN);
+			cout << "OK";
+		} else {
+			setColor(ConsoleColors::RED);
+			cout << "XX";
+		}
+		setColor(ConsoleColors::DARK_GRAY);
+		cout << "] ";
+		setColor(ConsoleColors::WHITE);
+		cout << message << "                    \n";
+		resetColor();
+	}
+};
+
+// Глобальный спиннер
+static Spinner g_spinner;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// СТАРТОВАЯ ИНФОРМАЦИЯ О СИСТЕМЕ
+// ═══════════════════════════════════════════════════════════════════════════════
+
+void printSystemInfo() {
+	if (!g_hConsole) g_hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	
+	// Получение информации о системе
+	OSVERSIONINFOEX osvi;
+	ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+	osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+	
+	MEMORYSTATUSEX memInfo;
+	memInfo.dwLength = sizeof(MEMORYSTATUSEX);
+	GlobalMemoryStatusEx(&memInfo);
+	
+	SYSTEM_INFO sysInfo;
+	GetSystemInfo(&sysInfo);
+	
+	printSection("SYSTEM INFORMATION");
+	printStatus("OS", "Windows", ConsoleColors::CYAN);
+	printStatus("Architecture", sysInfo.wProcessorArchitecture == 9 ? "x64" : "x86", ConsoleColors::CYAN);
+	printStatus("Processors", to_string(sysInfo.dwNumberOfProcessors) + " cores", ConsoleColors::GREEN);
+	printStatus("Total RAM", to_string(memInfo.ullTotalPhys / (1024 * 1024)) + " MB", ConsoleColors::GREEN);
+	printStatus("Available RAM", to_string(memInfo.ullAvailPhys / (1024 * 1024)) + " MB", ConsoleColors::YELLOW);
+	printSectionEnd();
+}
+
 int main() {
 	
-	string version = "v2.6";  // Рулетка: lvl>=3 ВКЛ, lvl<3 ВЫКЛ. AFK: lvl>=5 ВЫКЛ
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Инициализация Dashboard UI v3.0
+	// ═══════════════════════════════════════════════════════════════════════════
+	initConsole();
+	initDashboard();
+	
+	string version = "v3.0";  // Dashboard UI. Enterprise-level console interface.
 	string status = "Baldeet";
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 	void* program_instance = try_open_single_program("407637B6-98D3-4EFC-A838-40BBB5204CF1");
@@ -823,19 +1414,30 @@ int main() {
 		});
 	timecheck.detach();
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Dashboard UI - Главный баннер
+	// ═══════════════════════════════════════════════════════════════════════════
 	string extIP;
 	getExternalIP(extIP);
+	
+	// Выводим полный Dashboard
+	dashPrintHeader(version);
+	dashPrintSystemPanel();
+	
 	logprint("Current IP:\t" + extIP, currentTm);
 
-
-
-	Sleep(2000);
+	Sleep(1000);
 	logprint("Started", currentTm);
 
 	string password = "Naguibs1337228";
 
 	logprint("Current version:\t" + version, currentTm);
 	string token(getenv("TOKEN"));
+	
+	// Dashboard Log Entry для Telegram
+	dashPrintLogHeader();
+	dashPrintLogEntry("INFO", "Telegram bot connecting...", "WAIT");
+	
 	logprint("Token:\t " + token, currentTm);
 
 
@@ -860,6 +1462,7 @@ int main() {
 	bool ruletka = true;
 	bool ruletka_user_disabled = false; // Флаг: пользователь вручную выключил рулетку
 	int previous_lvl = 0; // Предыдущий уровень для отслеживания достижения 3 лвл
+	int max_lvl_int = 5; // Максимальный уровень из таблицы (по умолчанию 5)
 	bool relogin = true;
 	bool forceRelogin = false;
 	bool cmd = false;
@@ -891,7 +1494,10 @@ int main() {
 	}
 
 
-	//CONFIG
+	//CONFIG - Загрузка конфигурации
+	string configLogin = "";
+	string configPCName = "Unknown";
+	
 	if (!config["Active Character"].empty())
 	{
 		try
@@ -941,24 +1547,35 @@ int main() {
 		else
 		{
 			afk = false;
-			// НЕ включаем рулетку автоматически при старте — она уже true по умолчанию
-			// ruletka включится автоматически при достижении 3 лвл
 		}
 	}
 	if (!config["PCNAME"].empty())
 	{
 		PCName = config["PCNAME"];
+		configPCName = PCName;
 		logprint("PCNAME: " + PCName, currentTm);
 	}
 	if (!config["Login"].empty())
 	{
 		login = config["Login"];
+		configLogin = login;
 		logprint("Login: " + login, currentTm);
 	}
 	if (!config["afkonly"].empty())
 	{
 		afkonly = true;
 	}
+	
+	// Dashboard - Панель сессии с данными из конфига
+	dashPrintSessionPanel(configLogin.empty() ? "Unknown" : configLogin, configPCName, extIP);
+	
+	// Dashboard - Лог записи инициализации
+	dashPrintLogEntry("OK", "Configuration loaded", "OK");
+	dashPrintLogEntry("OK", "Interception driver ready", "OK");
+	dashPrintLogEntry("INFO", "Waiting for game process...", "WAIT");
+	dashPrintLogFooter();
+	dashPrintHotkeys();
+	dashPrintFooter();
 
 
 	thread update([&updating]()
@@ -1744,7 +2361,12 @@ int main() {
 			{
 				Sleep(5000);
 				try {
-					printf("Bot username: %s\n", bot.getApi().getMe()->username.c_str());
+					string botName = bot.getApi().getMe()->username;
+					printSection("TELEGRAM BOT CONNECTED");
+					printStatus("Bot Username", "@" + botName, 10);
+					printStatus("Status", "ONLINE", 10);
+					printSectionEnd();
+					printf("Bot username: %s\n", botName.c_str());
 					bot.getApi().deleteWebhook();
 					TgLongPoll longPoll(bot);
 					while (true) {
@@ -1752,6 +2374,7 @@ int main() {
 					}
 				}
 				catch (exception& e) {
+					printError("Telegram Bot Error: " + (string)e.what());
 					logprint("error: " + (string)e.what(), currentTm);
 					//printf("error: %s\n", e.what());
 				}
@@ -1828,8 +2451,8 @@ int main() {
 
 
 
-	std::byte hard_id[512];
-	std::byte hard_mid[512];
+	wchar_t hard_id[512];
+	wchar_t hard_mid[512];
 	for (size_t i = 0; i < INTERCEPTION_MAX_KEYBOARD; i++)
 	{
 		size_t keyboard = INTERCEPTION_KEYBOARD(i);
@@ -1928,8 +2551,22 @@ int main() {
 		Sleep(10000);
 	}
 	updateStorageJson(getServerIp(PCName));
+	
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Вывод текущего состояния бота
+	// ═══════════════════════════════════════════════════════════════════════════
+	printSection("BOT STATUS");
+	printStatus("Ruletka", ruletka ? "ON" : "OFF", ruletka ? 10 : 12);
+	printStatus("AFK Mode", afk ? "ON" : "OFF", afk ? 10 : 8);
+	printStatus("Presents", present_activity ? "ENABLED" : "DISABLED", present_activity ? 10 : 8);
+	printSectionEnd();
+	
 	//AutoStart GTA
 	string RESTART = "0";
+	printSection("GAME LAUNCHER");
+	printOK("Starting GTA5RP...");
+	printSectionEnd();
+	
 	logprint("Restart init", currentTm);
 	while (!isRunningP(L"GTA5.exe") && !checkIP(ipList))
 	{
@@ -2143,7 +2780,7 @@ int main() {
 								logprint("Searching for rockstar code", currentTm);
 								list<unsigned long> msg_ids;
 								list<mailio::imaps::search_condition_t> criterias;
-								criterias.push_back(mailio::imaps::search_condition_t(mailio::imaps::search_condition_t::SUBJECT, "Your Rockstar Games verification code"));
+								criterias.push_back(mailio::imaps::search_condition_t(mailio::imaps::search_condition_t::SUBJECT, std::string("Your Rockstar Games verification code")));
 								conn.select("inbox");
 								conn.search(criterias, msg_ids);
 								logprint("Number of founded messages : " + msg_ids.size(), currentTm);
@@ -2731,24 +3368,45 @@ int main() {
 	}
 	string get_max_lvl_cmd = "scripts\\getmaxlvl.py " + PCName;
 	string max_lvl = exec(get_max_lvl_cmd.c_str());
+	
+	// Парсим max_lvl из таблицы (колонка T), если пусто - используем значение по умолчанию 5
+	if (!max_lvl.empty() && !filterDigits(max_lvl).empty())
+	{
+		max_lvl_int = stoi(filterDigits(max_lvl));
+		logprint("Max level from table: " + to_string(max_lvl_int), currentTm);
+	}
+	else
+	{
+		max_lvl_int = 5; // Значение по умолчанию если таблица не вернула данные
+		logprint("Max level not found in table, using default: 5", currentTm);
+	}
+	
 	string command = "scripts\\getlvl.py " + login + " Naguibs1337228";
 	string lvl = exec(command.c_str());
 	if (!lvl.empty() && !filterDigits(lvl).empty())
 	{
 		int current_lvl = stoi(filterDigits(lvl));
-		int max_lvl_int = stoi(filterDigits(max_lvl));
 		bot.getApi().sendMessage(517005065, "Lvl is " + lvl, false, 0, keyboardWithLayout);
+		
+		// Вывод информации об уровне
+		printSection("LEVEL STATUS");
+		printStatus("Current Level", to_string(current_lvl), ConsoleColors::YELLOW);
+		printStatus("Max Level", to_string(max_lvl_int), ConsoleColors::CYAN);
 		
 		// Логика рулетки: при lvl >= 3 ВКЛ, при lvl < 3 ВЫКЛ
 		if (current_lvl >= 3)
 		{
 			ruletka = true;
 			ruletka_user_disabled = false; // Сбрасываем флаг т.к. уровень достигнут
+			printStatusBool("Ruletka", true);
+			printOK("Level >= 3: Ruletka ENABLED");
 			logprint("Lvl >= 3, ruletka enabled", currentTm);
 		}
 		else
 		{
 			ruletka = false;
+			printStatusBool("Ruletka", false);
+			printWarn("Level < 3: Ruletka DISABLED");
 			logprint("Lvl < 3, ruletka disabled", currentTm);
 		}
 		
@@ -2756,20 +3414,33 @@ int main() {
 		if (current_lvl >= max_lvl_int)
 		{
 			afk = false;
+			printStatusBool("AFK Mode", false);
+			printInfo("Max level reached: AFK DISABLED");
 			logprint("Lvl >= max_lvl, afk disabled", currentTm);
 		}
 		else
 		{
 			afk = true;
+			printStatusBool("AFK Mode", true);
 		}
+		printSectionEnd();
 	}
 	else
 	{
+		printError("Level detection failed: " + lvl);
 		bot.getApi().sendMessage(517005065, "Lvl wasn't detected(" + lvl + ")", false, 0, keyboardWithLayout);
 	}
 	logprint("Restart end", currentTm);
 
 	HWND Gta5Window(FindWindowA(NULL, "RAGE Multiplayer"));
+	
+	// Статус готовности к работе
+	printSection("BOT STATUS");
+	printOK("Bot is now ACTIVE");
+	printInfo("Monitoring game...");
+	printSectionEnd();
+	cout << "\n";
+	
 	while (true) {
 
 		//Character choose window
@@ -2858,11 +3529,11 @@ int main() {
 					logprint("Lvl < 3, ruletka disabled", currentTm);
 				}
 				
-				// Логика AFK: при lvl >= 5 ВЫКЛ, иначе ВКЛ
-				if (current_lvl >= 5)
+				// Логика AFK: при lvl >= max_lvl ВЫКЛ, иначе ВКЛ
+				if (current_lvl >= max_lvl_int)
 				{
 					afk = false;
-					logprint("Lvl >= 5, afk disabled", currentTm);
+					logprint("Lvl >= max_lvl (" + to_string(max_lvl_int) + "), afk disabled", currentTm);
 				}
 				else
 				{
@@ -2909,6 +3580,71 @@ int main() {
 				scan.checkPixel(1112, 93 + 60, 255, 255, 255) ||
 				scan.checkPixel(1164, 96 + 60, 255, 255, 255))
 			&& ruletka)*/
+		
+		// ═══════════════════════════════════════════════════════════════════════════
+		// PRESENT TAKING - Проверка и забор подарков (работает НЕЗАВИСИМО от рулетки!)
+		// ═══════════════════════════════════════════════════════════════════════════
+		if (present_activity && !ruletka)
+		{
+			// Подарки проверяются ТОЛЬКО когда рулетка выключена
+			// Когда рулетка включена, подарки проверяются в блоке рулетки
+			printInfo("Checking presents (ruletka OFF mode)...");
+			logprint("Checking presents (ruletka OFF mode)...", currentTm);
+			
+			interception_send(context, device, (InterceptionStroke*)&f10_down, 1);
+			Sleep(300);
+			interception_send(context, device, (InterceptionStroke*)&f10_up, 1);
+			Sleep(10000);
+			
+			// Кликаем на вкладку подарков
+			mouse_leftClick(context, mouseDevice, 458, 94);
+			Sleep(10000);
+			
+			// Проверяем есть ли кнопка забрать подарок
+			if (scan.checkPixel(720, 500, 193, 26, 33))
+			{
+				printOK("Present button found! Taking present...");
+				logprint("Present button found! Taking present...", currentTm);
+				mouse_leftClick(context, mouseDevice, 720, 500);
+				Sleep(10000);
+				mouse_leftClick(context, mouseDevice, 720, 500);
+				Sleep(3000);
+				scan.makeScreenshot();
+				for (string id : tgListLoging)
+				{
+					int wait = 0;
+					while (wait < 5)
+					{
+						try
+						{
+							bot.getApi().sendPhoto(id, InputFile::fromFile(photoFilePath, photoMimeType), "Present was taken (ruletka OFF)", 0, nullptr, "", true);
+							break;
+						}
+						catch (const std::exception& e)
+						{
+							printError("Telegram connection failed: " + (string)e.what());
+							logprint("\nNO CONNECTION WITH TELEGRAM.SCREENSHOT WASN'T SENDED\nError: " + (string)e.what(), currentTm);
+						}
+						wait++;
+						Sleep(1000);
+					}
+				}
+			}
+			else
+			{
+				printDebug("No present available");
+				logprint("No present available", currentTm);
+			}
+			
+			// Закрываем меню F10
+			mouse_leftClick(context, mouseDevice, 1158, 100);
+			Sleep(3000);
+			interception_send(context, device, (InterceptionStroke*)&esc_down, 1);
+			Sleep(300);
+			interception_send(context, device, (InterceptionStroke*)&esc_up, 1);
+			Sleep(5000);
+		}
+		
 		//Ruletka
 		if (checkSpin() && ruletka)
 		{
