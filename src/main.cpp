@@ -706,7 +706,7 @@ void updateStorageJson(const std::string& SERVER_IP) {
 		"{\"tab\":\"favorites\",\"favorites\":[{\"ip\":\"" + SERVER_IP +
 		"\",\"name\":\"V3 SERVER\",\"port\":22005}],\"history\":["
 		"{\"ip\":\"vinewood.gta5rp.com\",\"name\":\"vinewood.gta5rp.com:22005\",\"port\":\"22005\"},"
-		"{\"ip\":\"vinewood.gta5rp.com\",\"name\":\"⭐️ GTA5RP.COM | VineWood | gta5rp.com/discord\",\"port\":22005}]}";
+		"{\"ip\":\"vinewood.gta5rp.com\",\"name\":\"GTA5RP.COM | VineWood | gta5rp.com/discord\",\"port\":22005}]}";
 
 	if (SERVER_IP.empty())
 	{
@@ -714,7 +714,7 @@ void updateStorageJson(const std::string& SERVER_IP) {
 			"{\"tab\":\"favorites\",\"favorites\":[{\"ip\":\"" + SERVER_IP +
 			"\",\"name\":\"ERROR DURING GETTING SERVER IP!!!!\",\"port\":22005}],\"history\":["
 			"{\"ip\":\"vinewood.gta5rp.com\",\"name\":\"vinewood.gta5rp.com:22005\",\"port\":\"22005\"},"
-			"{\"ip\":\"vinewood.gta5rp.com\",\"name\":\"⭐️ GTA5RP.COM | VineWood | gta5rp.com/discord\",\"port\":22005}]}";
+			"{\"ip\":\"vinewood.gta5rp.com\",\"name\":\"GTA5RP.COM | VineWood | gta5rp.com/discord\",\"port\":22005}]}";
 	}
 	std::ofstream file(filePath, std::ios::trunc);  // std::ios::trunc — очищает файл перед записью
 	if (!file.is_open()) {
@@ -1621,10 +1621,10 @@ int main() {
 
 	ReplyKeyboardMarkup::Ptr keyboardWithLayout(new ReplyKeyboardMarkup);
 	createKeyboard({
-		{"📸 /photo", "📊 /status"},
-		{"💤 /afk", "🎰 /ruletka"},
-		{"🎁 /vip", "⭐ /lvl"},
-		{"🔄 /restart", "❓ /help"}
+		{"/photo", "/status"},
+		{"/afk", "/ruletka"},
+		{"/vip", "/lvl"},
+		{"/restart", "/help"}
 		}, keyboardWithLayout);
 	
 	// Время запуска для uptime
@@ -1644,16 +1644,16 @@ int main() {
 			return;
 		}
 		string welcomeMsg = 
-			"🚀 VIRTAPP v3.1 ЗАПУЩЕН!\n"
-			"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-			"🤖 Бот: @" + bot.getApi().getMe()->username + "\n\n"
-			"⚙️ ТЕКУЩИЕ НАСТРОЙКИ:\n"
-			"├ 💤 AFK: " + string(afk ? "✅ ВКЛ" : "❌ ВЫКЛ") + "\n"
-			"├ 🎰 Рулетка: " + string(ruletka ? "✅ ВКЛ" : "❌ ВЫКЛ") + "\n"
-			"└ 🎯 Цель: " + to_string(max_lvl_int) + " лвл\n\n"
-			"📋 /help - список команд\n"
-			"📊 /status - полный статус\n\n"
-			"✨ Добро пожаловать!";
+			"VIRTAPP v3.1 STARTED!\n"
+			"========================\n"
+			"Bot: @" + bot.getApi().getMe()->username + "\n\n"
+			"CURRENT SETTINGS:\n"
+			"- AFK: " + string(afk ? "ON" : "OFF") + "\n"
+			"- Ruletka: " + string(ruletka ? "ON" : "OFF") + "\n"
+			"- Target: " + to_string(max_lvl_int) + " lvl\n\n"
+			"/help - commands list\n"
+			"/status - full status\n\n"
+			"Welcome!";
 		bot.getApi().sendMessage(message->chat->id, welcomeMsg, false, 0, keyboardWithLayout);
 		});
 	bot.getEvents().onCommand("gpu", [&bot, &keyboardWithLayout, &timeout](Message::Ptr message) {
@@ -2017,12 +2017,12 @@ int main() {
 		}
 		scan.makeScreenshot();
 		string photoCaption = 
-			"📸 СКРИНШОТ\n"
-			"━━━━━━━━━━━━━━━━\n"
-			"🤖 @" + bot.getApi().getMe()->username + "\n"
-			"📍 " + status + "\n"
-			"💤 AFK: " + (afk ? "✅" : "❌") + "\n"
-			"🎰 Ruletka: " + (ruletka ? "✅" : "❌");
+			"SCREENSHOT\n"
+			"----------------\n"
+			"Bot: @" + bot.getApi().getMe()->username + "\n"
+			"Status: " + status + "\n"
+			"AFK: " + (afk ? "[ON]" : "[OFF]") + "\n"
+			"Ruletka: " + (ruletka ? "[ON]" : "[OFF]");
 		try
 		{
 			bot.getApi().sendPhoto(message->chat->id, InputFile::fromFile(photoFilePath, photoMimeType), photoCaption, 0, keyboardWithLayout);
@@ -2152,8 +2152,8 @@ int main() {
 				return;
 			}
 			string afkStatus = afk ? 
-				"💤 AFK: ❌ ВЫКЛЮЧЕН\n━━━━━━━━━━━━━━━━\nРежим AFK отключён" : 
-				"💤 AFK: ✅ ВКЛЮЧЕН\n━━━━━━━━━━━━━━━━\nРежим AFK активирован";
+				"AFK: OFF\n================\nAFK mode disabled" : 
+				"AFK: ON\n================\nAFK mode enabled";
 			bot.getApi().sendMessage(message->chat->id, afkStatus, false, 0, keyboardWithLayout);
 			afk = !afk;
 		});
@@ -2172,8 +2172,8 @@ int main() {
 				return;
 			}
 			string ruletkaStatus = ruletka ? 
-				"🎰 Рулетка: ❌ ВЫКЛЮЧЕНА\n━━━━━━━━━━━━━━━━━━\n⚠️ Рулетка отключена вручную" : 
-				"🎰 Рулетка: ✅ ВКЛЮЧЕНА\n━━━━━━━━━━━━━━━━━━\n🎲 Рулетка активирована!";
+				"Ruletka: OFF\n==================\nRuletka disabled manually" : 
+				"Ruletka: ON\n==================\nRuletka enabled!";
 			bot.getApi().sendMessage(message->chat->id, ruletkaStatus, false, 0, keyboardWithLayout);
 			ruletka = !ruletka;
 			// Запоминаем что пользователь выключил рулетку вручную
@@ -2193,7 +2193,7 @@ int main() {
 				bot.getApi().sendSticker(message->chat->id, "CAACAgEAAxkBAAExWJRnnoCj6G2IwoOoeyqX4CRurvrfLwACkQEAAt96sUfMX1uymPvn9jYE");
 				return;
 			}
-			bot.getApi().sendMessage(message->chat->id, "🔄 Принудительный релогин...\n━━━━━━━━━━━━━━━━━\n⏳ Выполняется перезаход", false, 0, keyboardWithLayout);
+			bot.getApi().sendMessage(message->chat->id, "Force relogin...\n=================\nRelogging now", false, 0, keyboardWithLayout);
 			forceRelogin = true;
 		});
 	bot.getEvents().onCommand("restart", [&bot, &forceRelogin, &keyboardWithLayout, &timeout](Message::Ptr message)
@@ -2210,7 +2210,7 @@ int main() {
 				bot.getApi().sendSticker(message->chat->id, "CAACAgEAAxkBAAExWJRnnoCj6G2IwoOoeyqX4CRurvrfLwACkQEAAt96sUfMX1uymPvn9jYE");
 				return;
 			}
-			bot.getApi().sendMessage(message->chat->id, "🔄 ПЕРЕЗАГРУЗКА PC\n━━━━━━━━━━━━━━━━━\n⚠️ Компьютер перезагрузится\n   через 5 секунд...", false, 0, keyboardWithLayout);
+			bot.getApi().sendMessage(message->chat->id, "PC RESTART\n=================\nPC will restart in 5 seconds...", false, 0, keyboardWithLayout);
 			system("shutdown /r /t 5");
 		});
 	bot.getEvents().onCommand("sysinfo", [&bot, &timeout](Message::Ptr message)
@@ -2288,11 +2288,11 @@ int main() {
 			string lvl = exec(command.c_str());
 			if (!filterDigits(lvl).empty())
 			{
-				bot.getApi().sendMessage(message->chat->id, "⭐ Уровень: " + lvl, false, 0, keyboardWithLayout);
+				bot.getApi().sendMessage(message->chat->id, "Level: " + lvl, false, 0, keyboardWithLayout);
 			}
 			else
 			{
-				bot.getApi().sendMessage(message->chat->id, "❌ Уровень не определён (" + lvl + ")", false, 0, keyboardWithLayout);
+				bot.getApi().sendMessage(message->chat->id, "Level not detected (" + lvl + ")", false, 0, keyboardWithLayout);
 			}
 		});
 
@@ -2313,45 +2313,44 @@ int main() {
 			return;
 		}
 		string helpText = 
-			"╔═══════════════════════════════════╗\n"
-			"║     📚 VIRTAPP HELP v3.0          ║\n"
-			"╠═══════════════════════════════════╣\n"
-			"║                                   ║\n"
-			"║  📊 ИНФОРМАЦИЯ                    ║\n"
-			"║  /status  - Полный статус         ║\n"
-			"║  /photo   - Скриншот экрана       ║\n"
-			"║  /lvl     - Текущий уровень       ║\n"
-			"║  /log     - Последние логи        ║\n"
-			"║  /sysinfo - Системная информация  ║\n"
-			"║                                   ║\n"
-			"║  ⚙️ УПРАВЛЕНИЕ                    ║\n"
-			"║  /afk     - Вкл/выкл AFK режим    ║\n"
-			"║  /ruletka - Вкл/выкл рулетку      ║\n"
-			"║  /vip     - Открыть VIP меню      ║\n"
-			"║  /bp      - Battle Pass           ║\n"
-			"║  /dp      - Donator Pass          ║\n"
-			"║                                   ║\n"
-			"║  🛠️ СИСТЕМА                       ║\n"
-			"║  /restart - Перезагрузка PC       ║\n"
-			"║  /update  - Обновить бота         ║\n"
-			"║  /config  - Показать конфиг       ║\n"
-			"║  /ping    - Проверка связи        ║\n"
-			"║  /uptime  - Время работы          ║\n"
-			"║                                   ║\n"
-			"║  📁 ФАЙЛЫ                         ║\n"
-			"║  /getlogfile - Скачать логи       ║\n"
-			"║  /photofile  - Фото файлом        ║\n"
-			"║  /setconfig  - Изменить конфиг    ║\n"
-			"║  /creds      - Изменить creds     ║\n"
-			"║                                   ║\n"
-			"║  🔧 ОТЛАДКА                       ║\n"
-			"║  /cmd       - Выполнить команду   ║\n"
-			"║  /hwid      - Показать HWID       ║\n"
-			"║  /gpu       - Информация о GPU    ║\n"
-			"║  /cad       - Ctrl+Alt+Del        ║\n"
-			"║  /fps       - Текущий FPS         ║\n"
-			"║                                   ║\n"
-			"╚═══════════════════════════════════╝";
+			"======================================\n"
+			"       VIRTAPP HELP v3.0             \n"
+			"======================================\n"
+			"\n"
+			"INFO:\n"
+			"  /status  - Full status\n"
+			"  /photo   - Screenshot\n"
+			"  /lvl     - Current level\n"
+			"  /log     - Recent logs\n"
+			"  /sysinfo - System info\n"
+			"\n"
+			"CONTROL:\n"
+			"  /afk     - Toggle AFK mode\n"
+			"  /ruletka - Toggle ruletka\n"
+			"  /vip     - VIP menu\n"
+			"  /bp      - Battle Pass\n"
+			"  /dp      - Donator Pass\n"
+			"\n"
+			"SYSTEM:\n"
+			"  /restart - Restart PC\n"
+			"  /update  - Update bot\n"
+			"  /config  - Show config\n"
+			"  /ping    - Check connection\n"
+			"  /uptime  - Bot uptime\n"
+			"\n"
+			"FILES:\n"
+			"  /getlogfile - Download logs\n"
+			"  /photofile  - Photo as file\n"
+			"  /setconfig  - Change config\n"
+			"  /creds      - Change creds\n"
+			"\n"
+			"DEBUG:\n"
+			"  /cmd  - Execute command\n"
+			"  /hwid - Show HWID\n"
+			"  /gpu  - GPU info\n"
+			"  /cad  - Ctrl+Alt+Del\n"
+			"  /fps  - Current FPS\n"
+			"======================================";
 		bot.getApi().sendMessage(message->chat->id, helpText, false, 0, keyboardWithLayout);
 	});
 
@@ -2393,30 +2392,30 @@ int main() {
 		string progressBar = "";
 		int filled = progress / 10;
 		for (int i = 0; i < 10; i++) {
-			progressBar += (i < filled) ? "█" : "░";
+			progressBar += (i < filled) ? "#" : "-";
 		}
 		
 		ostringstream oss;
-		oss << "╔═══════════════════════════════════╗\n";
-		oss << "║     🎮 VIRTAPP STATUS v3.1        ║\n";
-		oss << "╠═══════════════════════════════════╣\n";
-		oss << "║ 🖥️ PC: " << left << setw(26) << PCName << "║\n";
-		oss << "║ 👤 Account: " << left << setw(22) << login << "║\n";
-		oss << "║ 📍 Status: " << left << setw(23) << status << "║\n";
-		oss << "╠═══════════════════════════════════╣\n";
-		oss << "║ ⭐ Level: " << current_lvl << " / " << max_lvl_int << "                      ║\n";
-		oss << "║ 📊 Progress: [" << progressBar << "] " << progress << "%  ║\n";
-		oss << "╠═══════════════════════════════════╣\n";
-		oss << "║ 💤 AFK:      " << (afk ? "✅ ON " : "❌ OFF");
-		if (current_lvl < max_lvl_int) oss << " (авто до " << max_lvl_int << " лвл)";
+		oss << "====================================\n";
+		oss << "     VIRTAPP STATUS v3.1           \n";
+		oss << "====================================\n";
+		oss << "PC: " << PCName << "\n";
+		oss << "Account: " << login << "\n";
+		oss << "Status: " << status << "\n";
+		oss << "------------------------------------\n";
+		oss << "Level: " << current_lvl << " / " << max_lvl_int << "\n";
+		oss << "Progress: [" << progressBar << "] " << progress << "%\n";
+		oss << "------------------------------------\n";
+		oss << "AFK:      " << (afk ? "[ON] " : "[OFF]");
+		if (current_lvl < max_lvl_int) oss << " (auto to " << max_lvl_int << " lvl)";
 		oss << "\n";
-		oss << "║ 🎰 Ruletka: " << (ruletka ? "✅ ON " : "❌ OFF");
-		if (current_lvl < 3) oss << " (с 3 лвл)";
+		oss << "Ruletka: " << (ruletka ? "[ON] " : "[OFF]");
+		if (current_lvl < 3) oss << " (from 3 lvl)";
 		oss << "\n";
-		oss << "╠═══════════════════════════════════╣\n";
-		oss << "║ ⏱️ Uptime: " << hours << "h " << mins << "m\n";
-		oss << "║ 💾 RAM: " << memPercent << "%\n";
-		oss << "╚═══════════════════════════════════╝";
+		oss << "------------------------------------\n";
+		oss << "Uptime: " << hours << "h " << mins << "m\n";
+		oss << "RAM: " << memPercent << "%\n";
+		oss << "====================================";
 		
 		bot.getApi().sendMessage(message->chat->id, oss.str(), false, 0, keyboardWithLayout);
 	});
@@ -2434,21 +2433,21 @@ int main() {
 			return;
 		}
 		string menuText = 
-			"🎮 ГЛАВНОЕ МЕНЮ VIRTAPP\n"
-			"━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-			"📊 СТАТУС\n"
-			"├ /status - Полный статус\n"
-			"├ /photo  - Скриншот\n"
-			"└ /lvl    - Уровень\n\n"
-			"⚙️ УПРАВЛЕНИЕ\n"
-			"├ /afk     - AFK режим\n"
-			"├ /ruletka - Рулетка\n"
-			"└ /vip     - VIP меню\n\n"
-			"🛠️ СИСТЕМА\n"
-			"├ /restart - Перезагрузка\n"
-			"├ /sysinfo - Системная инфо\n"
-			"└ /config  - Конфигурация\n\n"
-			"❓ /help - Все команды";
+			"MAIN MENU VIRTAPP\\n"
+			"========================\\n\\n"
+			"STATUS:\\n"
+			"- /status - Full status\\n"
+			"- /photo  - Screenshot\\n"
+			"- /lvl    - Level\\n\\n"
+			"CONTROL:\\n"
+			"- /afk     - AFK mode\\n"
+			"- /ruletka - Ruletka\\n"
+			"- /vip     - VIP menu\\n\\n"
+			"SYSTEM:\\n"
+			"- /restart - Restart\\n"
+			"- /sysinfo - System info\\n"
+			"- /config  - Config\\n\\n"
+			"/help - All commands";
 		bot.getApi().sendMessage(message->chat->id, menuText, false, 0, keyboardWithLayout);
 	});
 
@@ -2469,10 +2468,10 @@ int main() {
 		int latency = nowSec - message->date;
 		
 		ostringstream oss;
-		oss << "🏓 PONG!\n";
-		oss << "━━━━━━━━━━━━━━━━\n";
-		oss << "✅ Бот активен\n";
-		oss << "⏱️ Задержка: " << latency << " сек";
+		oss << "PONG!\n";
+		oss << "================\n";
+		oss << "Bot is active\n";
+		oss << "Latency: " << latency << " sec";
 		bot.getApi().sendMessage(message->chat->id, oss.str(), false, 0, keyboardWithLayout);
 	});
 
@@ -2495,11 +2494,11 @@ int main() {
 		int mins = uptimeMin % 60;
 		
 		ostringstream oss;
-		oss << "⏱️ UPTIME\n";
-		oss << "━━━━━━━━━━━━━━━━\n";
-		if (days > 0) oss << "📅 Дней: " << days << "\n";
-		oss << "🕐 Часов: " << hours << "\n";
-		oss << "🕑 Минут: " << mins;
+		oss << "UPTIME\n";
+		oss << "================\n";
+		if (days > 0) oss << "Days: " << days << "\n";
+		oss << "Hours: " << hours << "\n";
+		oss << "Minutes: " << mins;
 		bot.getApi().sendMessage(message->chat->id, oss.str(), false, 0, keyboardWithLayout);
 	});
 
@@ -3670,7 +3669,7 @@ int main() {
 			printOK("TARGET REACHED! Level " + to_string(current_lvl) + " >= " + to_string(max_lvl_int));
 			printInfo("AFK DISABLED - target level reached");
 			logprint("Lvl >= max_lvl (" + to_string(max_lvl_int) + "), afk DISABLED", currentTm);
-			bot.getApi().sendMessage(517005065, "🎉 ЦЕЛЬ ДОСТИГНУТА!\n⭐ Уровень: " + to_string(current_lvl) + " / " + to_string(max_lvl_int) + "\n💤 AFK: ВЫКЛЮЧЕН", false, 0, keyboardWithLayout);
+			bot.getApi().sendMessage(517005065, "TARGET REACHED!\nLevel: " + to_string(current_lvl) + " / " + to_string(max_lvl_int) + "\nAFK: DISABLED", false, 0, keyboardWithLayout);
 		}
 		else
 		{
@@ -3796,14 +3795,14 @@ int main() {
 					// Достигли цели - AFK можно выключить
 					afk = false;
 					logprint("TARGET REACHED! Lvl " + to_string(current_lvl) + " >= max_lvl (" + to_string(max_lvl_int) + "), afk DISABLED", currentTm);
-					bot.getApi().sendMessage(517005065, "🎉 ЦЕЛЬ ДОСТИГНУТА!\n⭐ Уровень: " + to_string(current_lvl) + " / " + to_string(max_lvl_int) + "\n💤 AFK: ВЫКЛЮЧЕН", false, 0, keyboardWithLayout);
+					bot.getApi().sendMessage(517005065, "TARGET REACHED!\nLevel: " + to_string(current_lvl) + " / " + to_string(max_lvl_int) + "\nAFK: DISABLED", false, 0, keyboardWithLayout);
 				}
 				else
 				{
 					// Ещё не достигли - AFK ОБЯЗАТЕЛЬНО ВКЛЮЧЁН
 					afk = true;
 					logprint("Progress: Lvl " + to_string(current_lvl) + " < max_lvl (" + to_string(max_lvl_int) + "), afk FORCED ON", currentTm);
-					bot.getApi().sendMessage(517005065, "📊 Прогресс: " + to_string(current_lvl) + " / " + to_string(max_lvl_int) + " лвл\n💤 AFK: ПРИНУДИТЕЛЬНО ВКЛ", false, 0, keyboardWithLayout);
+					bot.getApi().sendMessage(517005065, "Progress: " + to_string(current_lvl) + " / " + to_string(max_lvl_int) + " lvl\nAFK: FORCED ON", false, 0, keyboardWithLayout);
 				}
 			}
 			else
