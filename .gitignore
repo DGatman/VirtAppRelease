@@ -1,10 +1,21 @@
 # Build directories
 build/
+build_*/
+Release_Build/
 CMakeFiles/
 .vs/
 .vscode/
 *.ipch
 *.ilk
+
+# Temporary files
+ANALYSIS.md
+BUILD_*.bat
+COMPILE_*.md
+DEPLOYMENT_*.md
+MANUAL_COMPILE_*.md
+CMakeSettings.json
+build_output.txt
 
 # Binary and compiled files
 *.exe
