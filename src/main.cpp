@@ -3684,8 +3684,12 @@ int main() {
 	}
 	else
 	{
+		// При ошибке определения уровня - НЕ трогаем ruletka (она по умолчанию true)
+		// Большинство аккаунтов lvl 3+, поэтому рулетка должна работать
 		printError("Level detection failed: " + lvl);
-		bot.getApi().sendMessage(517005065, "Lvl wasn't detected(" + lvl + ")", false, 0, keyboardWithLayout);
+		printWarn("Ruletka kept ENABLED (default behavior)");
+		printInfo("API might be temporarily unavailable");
+		bot.getApi().sendMessage(517005065, "Lvl wasn't detected(" + lvl + ")\nRuletka: ENABLED (default)\nAPI may be unavailable", false, 0, keyboardWithLayout);
 	}
 	logprint("Restart end", currentTm);
 
@@ -3807,7 +3811,10 @@ int main() {
 			}
 			else
 			{
-				bot.getApi().sendMessage(517005065, "Lvl wasn't detected(" + lvl + ")", false, 0, keyboardWithLayout);
+				// При ошибке определения уровня - НЕ трогаем ruletka (она по умолчанию true)
+				// Большинство аккаунтов lvl 3+, поэтому рулетка должна работать
+				logprint("Level detection failed, ruletka kept enabled (default)", currentTm);
+				bot.getApi().sendMessage(517005065, "Lvl wasn't detected(" + lvl + ")\nRuletka: ENABLED (default)", false, 0, keyboardWithLayout);
 			}
 			status = "Baldeet";
 		}
