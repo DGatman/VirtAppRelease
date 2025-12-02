@@ -1381,14 +1381,24 @@ int main() {
 
 	raise_process_priority();
 
-	thread set_local_time([&]()
-		{
-			string set_time_command = "scripts\\set_local_time.py";
-			exec(set_time_command.c_str());
-		});
-	set_local_time.detach();
+	// ═══════════════════════════════════════════════════════════════════════════
+	// TIME SYNC - Must complete BEFORE any network operations (SSL requires correct time)
+	// ═══════════════════════════════════════════════════════════════════════════
+	printSection("TIME SYNCHRONIZATION");
+	printInfo("Syncing system time (required for SSL)...");
+	{
+		string set_time_command = "scripts\\set_local_time.py";
+		string result = exec(set_time_command.c_str());
+		if (result.find("successfully") != string::npos || result.find("SUCCESS") != string::npos) {
+			printOK("Time synchronized successfully");
+		} else {
+			printWarn("Time sync may have issues, continuing...");
+		}
+	}
+	printSectionEnd();
+	
 	context = interception_create_context();
-	Sleep(2000);
+	Sleep(1000);
 
 	tm targetTimeMin = {};
 	targetTimeMin.tm_hour = 7;    // Час
