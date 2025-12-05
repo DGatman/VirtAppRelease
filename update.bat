@@ -1,24 +1,29 @@
 @echo off
-chcp 65001 > nul
-echo ========================================
-echo    VirtApp Update Script v3.2
-echo ========================================
+chcp 65001 >nul
+echo ══════════════════════════════════════════════════════════
+echo              VirtApp Updater
+echo ══════════════════════════════════════════════════════════
 echo.
 
-echo [1/4] Stopping VirtApp...
-taskkill /f /im VirtApp.exe 2>nul
-ping 127.0.0.1 -n 3 > nul
+REM Сохраняем конфиг перед обновлением
+if exist config.txt (
+    echo [*] Сохраняю config.txt...
+    copy config.txt config.backup.txt >nul
+)
 
-echo [2/4] Resetting local changes...
-git reset --hard HEAD
+echo [*] Обновляю из GitHub...
+git pull origin main
 
-echo [3/4] Pulling latest version...
-git pull origin master --force
+REM Восстанавливаем конфиг после обновления  
+if exist config.backup.txt (
+    echo [*] Восстанавливаю config.txt...
+    copy config.backup.txt config.txt >nul
+    del config.backup.txt
+)
 
-echo [4/4] Done!
 echo.
-echo ========================================
-echo    Update complete! Starting VirtApp...
-echo ========================================
-ping 127.0.0.1 -n 2 > nul
-start VirtApp.exe
+echo ══════════════════════════════════════════════════════════
+echo              Обновление завершено!
+echo ══════════════════════════════════════════════════════════
+echo.
+pause
