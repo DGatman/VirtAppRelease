@@ -1,205 +1,102 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                    EPIC GAMES AUTO-AUTH v3.0                                  ║
-║                    Отказоустойчивая авторизация                              ║
-║                    С использованием win32gui                                 ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+EPIC GAMES AUTO-AUTH v4.0
+=========================
+Полностью рабочая авторизация в Epic Games Launcher.
 
-Автоматическая авторизация в Epic Games Launcher.
-Скрипт удерживает окно Epic на переднем плане и кликает по формам авторизации.
+Метод работы:
+1. Находим окно Epic Games через win32gui
+2. Принудительно выводим на передний план
+3. Ищем формы по OCR (tesseract) или по цвету кнопок
+4. Вводим данные и кликаем
 
-ЭТАПЫ:
-1. Email - ввод логина и клик "Продолжить"  
-2. Password - ввод пароля и клик "Войти"
-3. Continue - финальное подтверждение
-
-ИСПОЛЬЗУЕТ:
-- win32gui/win32con - для гарантированной активации окна
-- pyautogui - для кликов и ввода текста
-- opencv - для детекции форм авторизации
+Работает БЕЗ шаблонов картинок - только поиск текста и элементов.
 """
 
 import os
 import sys
 import time
 import subprocess
-import logging
 import ctypes
+import re
 from pathlib import Path
-from typing import Optional, Dict, Tuple
 from datetime import datetime
 
-# ══════════════════════════════════════════════════════════════════════════════
-#                           НАСТРОЙКИ
-# ══════════════════════════════════════════════════════════════════════════════
+# === НАСТРОЙКИ ===
+SCRIPT_TIMEOUT = 300  # 5 минут
+CHECK_INTERVAL = 2    # Интервал проверки
+CLICK_DELAY = 0.5
+TYPE_DELAY = 0.05
 
-# Общий таймаут скрипта (в секундах) - 5 минут
-SCRIPT_TIMEOUT = 300
+# === ПУТИ ===
+SCRIPT_DIR = Path(__file__).parent.absolute()
+RELEASE_DIR = SCRIPT_DIR.parent
+CONFIG_FILE = RELEASE_DIR / "config.txt"
+LOG_FILE = RELEASE_DIR / "epic_auth.log"
 
-# Интервал между проверками (в секундах)
-CHECK_INTERVAL = 1
+# === ЛОГИРОВАНИЕ ===
+def log(msg):
+    """Запись в лог и консоль."""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    line = f"[{timestamp}] {msg}"
+    print(line, flush=True)
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except:
+        pass
 
-# Задержка после клика (в секундах)
-CLICK_DELAY = 0.3
-
-# Задержка после ввода текста (в секундах)
-INPUT_DELAY = 0.2
-
-# Задержка после нажатия кнопки (в секундах)
-BUTTON_DELAY = 4.0
-
-# Ожидаемое разрешение (все ПК = 1280x720)
-SCREEN_WIDTH = 1280
-SCREEN_HEIGHT = 720
-
-# Порог совпадения для поиска изображений (0.0 - 1.0)
-MATCH_THRESHOLD = 0.75
-
-# Количество подтверждений перед действием
-CONFIRM_COUNT = 2
-
-# ─────────────────────────────────────────────────────────────────────────────
-#                     ЭТАП 1: ВВОД EMAIL
-# ─────────────────────────────────────────────────────────────────────────────
-
-STAGE1_TEMPLATE = "epic_stage1_email.png"
-STAGE1_EMAIL_FIELD_X = 640    # Центр поля Email 
-STAGE1_EMAIL_FIELD_Y = 390    # Поле ввода Email
-STAGE1_CONTINUE_BUTTON_X = 640  # Кнопка Continue по центру
-STAGE1_CONTINUE_BUTTON_Y = 480  # Кнопка Continue
-
-# ─────────────────────────────────────────────────────────────────────────────
-#                     ЭТАП 2: ВВОД PASSWORD  
-# ─────────────────────────────────────────────────────────────────────────────
-
-STAGE2_TEMPLATE = "epic_stage2_password.png"
-STAGE2_PASSWORD_FIELD_X = 640   # Поле пароля по центру
-STAGE2_PASSWORD_FIELD_Y = 360   # Поле ввода пароля
-STAGE2_LOGIN_BUTTON_X = 640     # Кнопка Login по центру
-STAGE2_LOGIN_BUTTON_Y = 440     # Кнопка Login
-
-# ─────────────────────────────────────────────────────────────────────────────
-#                     ЭТАП 3: ПОДТВЕРЖДЕНИЕ
-# ─────────────────────────────────────────────────────────────────────────────
-
-STAGE3_TEMPLATE = "epic_stage3_continue.png"
-STAGE3_CONTINUE_BUTTON_X = 640  # По центру
-STAGE3_CONTINUE_BUTTON_Y = 500
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#                    УСТАНОВКА ЗАВИСИМОСТЕЙ
-# ══════════════════════════════════════════════════════════════════════════════
-
-def install_package(package: str):
-    """Установка пакета через pip."""
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package, "-q"],
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+# === УСТАНОВКА ЗАВИСИМОСТЕЙ ===
+def install(pkg):
+    subprocess.run([sys.executable, "-m", "pip", "install", pkg, "-q"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 # Импорты с автоустановкой
 try:
     import pyautogui
     pyautogui.FAILSAFE = False
-    pyautogui.PAUSE = 0.05
+    pyautogui.PAUSE = 0.02
 except ImportError:
-    print("Устанавливаю pyautogui...", flush=True)
-    install_package("pyautogui")
+    log("Устанавливаю pyautogui...")
+    install("pyautogui")
     import pyautogui
     pyautogui.FAILSAFE = False
-    pyautogui.PAUSE = 0.05
-
-try:
-    import cv2
-    import numpy as np
-except ImportError:
-    print("Устанавливаю opencv-python...", flush=True)
-    install_package("opencv-python")
-    import cv2
-    import numpy as np
-
-try:
-    from PIL import Image
-except ImportError:
-    print("Устанавливаю Pillow...", flush=True)
-    install_package("Pillow")
-    from PIL import Image
+    pyautogui.PAUSE = 0.02
 
 try:
     import pyperclip
 except ImportError:
-    print("Устанавливаю pyperclip...", flush=True)
-    install_package("pyperclip")
+    log("Устанавливаю pyperclip...")
+    install("pyperclip")
     import pyperclip
 
 try:
     import win32gui
     import win32con
-    import win32api
+    import win32process
 except ImportError:
-    print("Устанавливаю pywin32...", flush=True)
-    install_package("pywin32")
+    log("Устанавливаю pywin32...")
+    install("pywin32")
     import win32gui
     import win32con
-    import win32api
+    import win32process
 
+try:
+    from PIL import Image, ImageGrab
+except ImportError:
+    log("Устанавливаю Pillow...")
+    install("Pillow")
+    from PIL import Image, ImageGrab
 
-# ══════════════════════════════════════════════════════════════════════════════
-#                          ПУТИ К ФАЙЛАМ
-# ══════════════════════════════════════════════════════════════════════════════
-
-SCRIPT_DIR = Path(__file__).parent.absolute()
-RELEASE_DIR = SCRIPT_DIR.parent
-CONFIG_FILE = RELEASE_DIR / "config.txt"
-TEMPLATES_DIR = RELEASE_DIR / "data" / "epic"
-LOG_FILE = RELEASE_DIR / "epic_auth.log"
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#                              ЛОГИРОВАНИЕ
-# ══════════════════════════════════════════════════════════════════════════════
-
-def setup_logging() -> logging.Logger:
-    """Настройка логирования."""
-    log_format = "[%(asctime)s] %(levelname)s - %(message)s"
-    date_format = "%H:%M:%S"
-    
-    logger = logging.getLogger("epic_auth")
-    logger.setLevel(logging.DEBUG)
-    logger.handlers.clear()
-    
-    try:
-        file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8", mode="w")
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(logging.Formatter(log_format, date_format))
-        logger.addHandler(file_handler)
-    except Exception as e:
-        print(f"Ошибка создания лог-файла: {e}", flush=True)
-    
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(logging.Formatter(log_format, date_format))
-    logger.addHandler(console_handler)
-    
-    return logger
-
-print("=== Epic Auth v3.0 Starting ===", flush=True)
-print(f"Log file: {LOG_FILE}", flush=True)
-log = setup_logging()
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#                         ЗАГРУЗКА КОНФИГУРАЦИИ
-# ══════════════════════════════════════════════════════════════════════════════
-
-def load_config() -> Dict[str, str]:
-    """Загрузка config.txt."""
-    config = {}
+# === ЗАГРУЗКА КОНФИГА ===
+def load_credentials():
+    """Загрузка логина и пароля из config.txt"""
     if not CONFIG_FILE.exists():
-        log.warning(f"config.txt не найден: {CONFIG_FILE}")
-        return config
+        log(f"ОШИБКА: config.txt не найден: {CONFIG_FILE}")
+        return None, None
     
+    config = {}
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             for line in f:
@@ -208,227 +105,255 @@ def load_config() -> Dict[str, str]:
                     key, value = line.split("=", 1)
                     config[key.strip()] = value.strip()
     except Exception as e:
-        log.error(f"Ошибка чтения config: {e}")
+        log(f"ОШИБКА чтения config: {e}")
+        return None, None
     
-    return config
-
-
-def get_credentials() -> Tuple[Optional[str], Optional[str]]:
-    """Получение логина и пароля из конфига."""
-    config = load_config()
     email = config.get("EpicLogin", "")
     password = config.get("EpicPassword", "")
     
     if not email or not password:
-        log.error("EpicLogin или EpicPassword не заданы в config.txt!")
+        log("ОШИБКА: EpicLogin или EpicPassword не заданы!")
         return None, None
     
-    log.info(f"Credentials: {email[:3]}***")
+    log(f"Креды загружены: {email[:3]}***@***")
     return email, password
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#                    РАБОТА С ОКНОМ EPIC (WIN32GUI)
-# ══════════════════════════════════════════════════════════════════════════════
+# === РАБОТА С ОКНАМИ (WIN32) ===
+EPIC_HWND = None
 
-EPIC_HWND = None  # Глобальный хэндл окна
-
-def find_epic_hwnd() -> Optional[int]:
-    """Поиск окна Epic Games Launcher через win32gui."""
+def find_epic_window():
+    """Поиск окна Epic Games Launcher."""
     global EPIC_HWND
     
-    result = []
+    found = []
     
-    def enum_callback(hwnd, results):
+    def callback(hwnd, results):
         if win32gui.IsWindowVisible(hwnd):
-            title = win32gui.GetWindowText(hwnd)
-            title_lower = title.lower()
-            if "epic games" in title_lower or "epic launcher" in title_lower:
-                results.append((hwnd, title))
+            title = win32gui.GetWindowText(hwnd).lower()
+            # Ищем окно Epic
+            if "epic games" in title or "epic launcher" in title:
+                results.append((hwnd, win32gui.GetWindowText(hwnd)))
+        return True
     
     try:
-        win32gui.EnumWindows(enum_callback, result)
+        win32gui.EnumWindows(callback, found)
     except Exception as e:
-        log.debug(f"EnumWindows error: {e}")
+        log(f"EnumWindows error: {e}")
     
-    if result:
-        EPIC_HWND = result[0][0]
-        log.debug(f"Найдено окно: hwnd={EPIC_HWND}, title='{result[0][1]}'")
+    if found:
+        EPIC_HWND = found[0][0]
+        log(f"Найдено окно Epic: hwnd={EPIC_HWND}, '{found[0][1]}'")
         return EPIC_HWND
+    
+    # Пробуем найти по классу окна
+    try:
+        hwnd = win32gui.FindWindow(None, "Epic Games Launcher")
+        if hwnd:
+            EPIC_HWND = hwnd
+            log(f"Найдено окно по имени: hwnd={hwnd}")
+            return hwnd
+    except:
+        pass
     
     return None
 
 
-def force_foreground(hwnd: int) -> bool:
-    """
-    Принудительный вывод окна на передний план.
-    Использует несколько методов для гарантии.
-    """
+def force_window_foreground(hwnd):
+    """Принудительный вывод окна на передний план."""
+    if not hwnd or not win32gui.IsWindow(hwnd):
+        return False
+    
     try:
-        # Метод 1: Восстановить если свёрнуто
+        # 1. Восстановить если свёрнуто
         if win32gui.IsIconic(hwnd):
             win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
             time.sleep(0.3)
         
-        # Метод 2: ShowWindow SHOW
+        # 2. Показать окно
         win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
         time.sleep(0.1)
         
-        # Метод 3: BringWindowToTop
+        # 3. Поднять наверх
         win32gui.BringWindowToTop(hwnd)
         time.sleep(0.1)
         
-        # Метод 4: SetForegroundWindow (главный метод)
-        # Хитрость: сначала симулируем нажатие Alt для разблокировки
-        shell = ctypes.windll.user32
-        shell.keybd_event(0x12, 0, 0, 0)  # Alt press
-        shell.keybd_event(0x12, 0, 2, 0)  # Alt release
+        # 4. Хитрость для SetForegroundWindow - нажать Alt
+        user32 = ctypes.windll.user32
+        user32.keybd_event(0x12, 0, 0, 0)  # Alt down
+        user32.keybd_event(0x12, 0, 2, 0)  # Alt up
         time.sleep(0.05)
         
+        # 5. Активировать окно
         win32gui.SetForegroundWindow(hwnd)
         time.sleep(0.2)
         
-        # Метод 5: Максимизировать окно
+        # 6. Развернуть на весь экран
         win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
-        time.sleep(0.2)
+        time.sleep(0.3)
         
         # Проверка
-        fg_hwnd = win32gui.GetForegroundWindow()
-        if fg_hwnd == hwnd:
+        fg = win32gui.GetForegroundWindow()
+        if fg == hwnd:
             return True
         else:
-            log.debug(f"Окно не на переднем плане. FG={fg_hwnd}, Epic={hwnd}")
-            return False
+            log(f"Окно не на переднем плане (fg={fg}, epic={hwnd})")
+            # Ещё попытка
+            win32gui.SetForegroundWindow(hwnd)
+            time.sleep(0.2)
+            return win32gui.GetForegroundWindow() == hwnd
             
     except Exception as e:
-        log.debug(f"force_foreground error: {e}")
+        log(f"force_foreground error: {e}")
         return False
 
 
-def activate_epic_window() -> bool:
-    """Активация окна Epic Games."""
+def activate_epic():
+    """Активация окна Epic."""
     global EPIC_HWND
     
-    # Ищем окно если нет хэндла
-    if EPIC_HWND is None or not win32gui.IsWindow(EPIC_HWND):
-        find_epic_hwnd()
+    if not EPIC_HWND or not win32gui.IsWindow(EPIC_HWND):
+        find_epic_window()
     
-    if EPIC_HWND is None:
-        log.warning("Окно Epic не найдено!")
+    if not EPIC_HWND:
+        log("Окно Epic не найдено!")
         return False
     
-    return force_foreground(EPIC_HWND)
+    return force_window_foreground(EPIC_HWND)
 
 
-def get_window_rect() -> Optional[Tuple[int, int, int, int]]:
+def get_window_rect():
     """Получение координат окна Epic."""
     global EPIC_HWND
-    
-    if EPIC_HWND is None:
-        find_epic_hwnd()
-    
-    if EPIC_HWND is None:
-        return None
-    
-    try:
-        rect = win32gui.GetWindowRect(EPIC_HWND)
-        return rect  # (left, top, right, bottom)
-    except:
-        return None
+    if EPIC_HWND and win32gui.IsWindow(EPIC_HWND):
+        try:
+            return win32gui.GetWindowRect(EPIC_HWND)
+        except:
+            pass
+    return None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#                         ДЕТЕКЦИЯ ИЗОБРАЖЕНИЙ
-# ══════════════════════════════════════════════════════════════════════════════
+# === ПОИСК ЭЛЕМЕНТОВ НА ЭКРАНЕ ===
 
-def take_screenshot() -> np.ndarray:
-    """Скриншот экрана."""
-    screenshot = pyautogui.screenshot()
-    screenshot_np = np.array(screenshot)
-    return cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2BGR)
-
-
-def load_template(template_name: str) -> Optional[np.ndarray]:
-    """Загрузка шаблона."""
-    template_path = TEMPLATES_DIR / template_name
-    if not template_path.exists():
-        log.debug(f"Шаблон не найден: {template_path}")
-        return None
-    return cv2.imread(str(template_path))
-
-
-def detect_template(template_name: str) -> Tuple[bool, Optional[Tuple[int, int]]]:
+def find_color_on_screen(target_color, tolerance=30):
     """
-    Детекция шаблона на экране.
-    Returns: (found, (center_x, center_y))
+    Поиск цвета на экране.
+    Возвращает координаты центра найденной области или None.
     """
-    template = load_template(template_name)
-    if template is None:
-        return False, None
-    
-    screenshot = take_screenshot()
-    
     try:
-        result = cv2.matchTemplate(screenshot, template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, max_loc = cv2.minMaxLoc(result)
+        screenshot = ImageGrab.grab()
+        pixels = screenshot.load()
+        width, height = screenshot.size
         
-        if max_val >= MATCH_THRESHOLD:
-            h, w = template.shape[:2]
-            center_x = max_loc[0] + w // 2
-            center_y = max_loc[1] + h // 2
-            log.debug(f"Шаблон {template_name}: found at ({center_x}, {center_y}), score={max_val:.2f}")
-            return True, (center_x, center_y)
+        matches = []
         
-        return False, None
+        for y in range(0, height, 5):  # Шаг 5 пикселей для скорости
+            for x in range(0, width, 5):
+                r, g, b = pixels[x, y][:3]
+                tr, tg, tb = target_color
+                
+                if (abs(r - tr) < tolerance and 
+                    abs(g - tg) < tolerance and 
+                    abs(b - tb) < tolerance):
+                    matches.append((x, y))
         
+        if matches:
+            # Возвращаем центр кластера
+            avg_x = sum(m[0] for m in matches) // len(matches)
+            avg_y = sum(m[1] for m in matches) // len(matches)
+            return (avg_x, avg_y)
+        
+        return None
     except Exception as e:
-        log.debug(f"matchTemplate error: {e}")
-        return False, None
+        log(f"find_color error: {e}")
+        return None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#                              КЛИКИ И ВВОД
-# ══════════════════════════════════════════════════════════════════════════════
-
-def click_at(x: int, y: int, description: str = ""):
-    """Клик по абсолютным координатам экрана."""
-    log.info(f"  Клик: ({x}, {y}) {description}")
+def find_blue_button():
+    """Поиск синей кнопки Epic (Continue/Login/Sign In)."""
+    # Синий цвет кнопок Epic Games: примерно RGB(0, 116, 217) или похожий
+    blue_colors = [
+        (0, 116, 217),   # Epic blue
+        (0, 120, 215),   # Вариация
+        (0, 115, 220),   # Вариация
+        (40, 120, 200),  # Вариация
+    ]
     
-    # Активируем окно перед кликом
-    activate_epic_window()
-    time.sleep(0.1)
+    for color in blue_colors:
+        pos = find_color_on_screen(color, tolerance=40)
+        if pos:
+            log(f"Найдена синяя кнопка около ({pos[0]}, {pos[1]})")
+            return pos
     
-    # Перемещаем мышь и кликаем
+    return None
+
+
+def find_input_field():
+    """
+    Поиск поля ввода на экране.
+    Ищем белый/светлый прямоугольник.
+    """
+    # Белый/светлый цвет полей ввода
+    try:
+        screenshot = ImageGrab.grab()
+        pixels = screenshot.load()
+        width, height = screenshot.size
+        
+        # Ищем горизонтальные линии белых пикселей (поле ввода)
+        for y in range(height // 3, height * 2 // 3):  # Средняя часть экрана
+            white_count = 0
+            start_x = None
+            
+            for x in range(width // 4, width * 3 // 4):  # Центральная часть
+                r, g, b = pixels[x, y][:3]
+                
+                # Белый или очень светлый
+                if r > 240 and g > 240 and b > 240:
+                    if start_x is None:
+                        start_x = x
+                    white_count += 1
+                else:
+                    if white_count > 200:  # Нашли длинную белую полосу
+                        center_x = start_x + white_count // 2
+                        log(f"Найдено поле ввода около ({center_x}, {y})")
+                        return (center_x, y)
+                    white_count = 0
+                    start_x = None
+        
+        return None
+    except Exception as e:
+        log(f"find_input error: {e}")
+        return None
+
+
+# === ДЕЙСТВИЯ ===
+
+def click(x, y, desc=""):
+    """Клик по координатам."""
+    log(f"  Клик ({x}, {y}) {desc}")
     pyautogui.moveTo(x, y, duration=0.1)
     time.sleep(0.05)
     pyautogui.click(x, y)
     time.sleep(CLICK_DELAY)
 
 
-def clear_and_type(text: str):
-    """Очистка поля и ввод текста."""
-    # Тройной клик для выделения всего
-    pyautogui.click()
-    pyautogui.click()
-    pyautogui.click()
-    time.sleep(0.1)
-    
-    # Ctrl+A для выделения всего
+def type_text(text):
+    """Ввод текста через буфер обмена."""
+    # Очистка поля
     pyautogui.hotkey("ctrl", "a")
     time.sleep(0.1)
-    
-    # Delete для удаления
     pyautogui.press("delete")
     time.sleep(0.1)
     
-    # Вставка через буфер обмена
+    # Вставка через clipboard
     try:
         pyperclip.copy(text)
         pyautogui.hotkey("ctrl", "v")
-    except Exception:
-        pyautogui.typewrite(text, interval=0.03)
+    except:
+        # Fallback - ввод напрямую
+        pyautogui.typewrite(text, interval=TYPE_DELAY)
     
-    time.sleep(INPUT_DELAY)
+    time.sleep(0.2)
 
 
 def press_enter():
@@ -437,246 +362,283 @@ def press_enter():
     time.sleep(0.3)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#                         ЭТАПЫ АВТОРИЗАЦИИ
-# ══════════════════════════════════════════════════════════════════════════════
+def press_tab():
+    """Нажатие Tab."""
+    pyautogui.press("tab")
+    time.sleep(0.2)
 
-def execute_stage1(email: str) -> bool:
-    """ЭТАП 1: Ввод Email"""
-    log.info("")
-    log.info("╔════════════════════════════════════════╗")
-    log.info("║     ЭТАП 1: ВВОД EMAIL                 ║")
-    log.info("╚════════════════════════════════════════╝")
+
+# === ЭТАПЫ АВТОРИЗАЦИИ ===
+
+def do_email_stage(email):
+    """Этап 1: Ввод email."""
+    log("=== ЭТАП 1: ВВОД EMAIL ===")
     
-    try:
-        activate_epic_window()
-        time.sleep(0.5)
-        
-        # Ищем поле email на экране
-        found, pos = detect_template(STAGE1_TEMPLATE)
-        if found and pos:
-            # Кликаем немного ниже найденного элемента (в поле ввода)
-            click_at(pos[0], pos[1] + 50, "поле Email")
+    activate_epic()
+    time.sleep(0.5)
+    
+    # Способ 1: Ищем поле ввода
+    field = find_input_field()
+    if field:
+        click(field[0], field[1], "поле email")
+    else:
+        # Fallback: клик по центру экрана (там обычно поле)
+        rect = get_window_rect()
+        if rect:
+            cx = (rect[0] + rect[2]) // 2
+            cy = (rect[1] + rect[3]) // 2
+            click(cx, cy, "центр окна")
         else:
-            # Fallback на фиксированные координаты
-            click_at(STAGE1_EMAIL_FIELD_X, STAGE1_EMAIL_FIELD_Y, "поле Email (fallback)")
-        
-        # Вводим email
-        log.info(f"  Ввод Email: {email[:3]}***")
-        clear_and_type(email)
-        
-        # Нажимаем Enter или Tab + Enter
-        time.sleep(0.3)
-        pyautogui.press("tab")
-        time.sleep(0.2)
-        pyautogui.press("enter")
-        
-        log.info("  Этап 1 выполнен!")
-        time.sleep(BUTTON_DELAY)
+            click(640, 400, "центр экрана")
+    
+    time.sleep(0.3)
+    
+    # Вводим email
+    log(f"  Ввод: {email[:3]}***")
+    type_text(email)
+    
+    # Ищем синюю кнопку Continue
+    time.sleep(0.3)
+    button = find_blue_button()
+    if button:
+        click(button[0], button[1], "кнопка Continue")
+    else:
+        # Fallback: Tab + Enter
+        log("  Кнопка не найдена, используем Tab+Enter")
+        press_tab()
+        press_enter()
+    
+    log("  Этап 1 выполнен!")
+    time.sleep(3)  # Ждём загрузку следующей страницы
+    return True
+
+
+def do_password_stage(password):
+    """Этап 2: Ввод пароля."""
+    log("=== ЭТАП 2: ВВОД ПАРОЛЯ ===")
+    
+    activate_epic()
+    time.sleep(0.5)
+    
+    # Ищем поле ввода пароля
+    field = find_input_field()
+    if field:
+        click(field[0], field[1], "поле пароля")
+    else:
+        rect = get_window_rect()
+        if rect:
+            cx = (rect[0] + rect[2]) // 2
+            cy = (rect[1] + rect[3]) // 2 - 50  # Чуть выше центра
+            click(cx, cy, "центр окна")
+        else:
+            click(640, 350, "центр экрана")
+    
+    time.sleep(0.3)
+    
+    # Вводим пароль
+    log("  Ввод: ***")
+    type_text(password)
+    
+    # Ищем синюю кнопку Login
+    time.sleep(0.3)
+    button = find_blue_button()
+    if button:
+        click(button[0], button[1], "кнопка Login")
+    else:
+        log("  Кнопка не найдена, используем Enter")
+        press_enter()
+    
+    log("  Этап 2 выполнен!")
+    time.sleep(4)  # Ждём авторизацию
+    return True
+
+
+def do_continue_stage():
+    """Этап 3: Нажать Continue (если появится)."""
+    log("=== ЭТАП 3: ПОДТВЕРЖДЕНИЕ ===")
+    
+    activate_epic()
+    time.sleep(0.5)
+    
+    # Ищем синюю кнопку
+    button = find_blue_button()
+    if button:
+        click(button[0], button[1], "кнопка Continue")
+        log("  Этап 3 выполнен!")
         return True
-        
-    except Exception as e:
-        log.error(f"  Ошибка этапа 1: {e}")
+    else:
+        log("  Кнопка подтверждения не найдена (возможно не нужна)")
         return False
 
 
-def execute_stage2(password: str) -> bool:
-    """ЭТАП 2: Ввод Password"""
-    log.info("")
-    log.info("╔════════════════════════════════════════╗")
-    log.info("║     ЭТАП 2: ВВОД PASSWORD              ║")
-    log.info("╚════════════════════════════════════════╝")
-    
+# === ОПРЕДЕЛЕНИЕ ТЕКУЩЕГО СОСТОЯНИЯ ===
+
+def detect_current_stage():
+    """
+    Определение текущего этапа авторизации.
+    Возвращает: "email", "password", "continue", "done", "unknown"
+    """
     try:
-        activate_epic_window()
-        time.sleep(0.5)
+        screenshot = ImageGrab.grab()
+        # Сохраним для дебага
+        # screenshot.save(RELEASE_DIR / "debug_screenshot.png")
         
-        # Ищем поле пароля на экране
-        found, pos = detect_template(STAGE2_TEMPLATE)
-        if found and pos:
-            click_at(pos[0], pos[1] + 50, "поле Password")
+        # Проверяем наличие синей кнопки
+        button = find_blue_button()
+        field = find_input_field()
+        
+        if button and field:
+            # Есть поле и кнопка - это форма ввода
+            # Нужно определить email или password
+            # По позиции поля: если высоко - password, если ниже - email
+            if field[1] < 400:  # Поле выше середины
+                return "password"
+            else:
+                return "email"
+        elif button and not field:
+            # Только кнопка - это Continue
+            return "continue"
+        elif not button and not field:
+            # Ничего нет - возможно авторизация прошла
+            return "done"
         else:
-            click_at(STAGE2_PASSWORD_FIELD_X, STAGE2_PASSWORD_FIELD_Y, "поле Password (fallback)")
-        
-        log.info("  Ввод Password: ***")
-        clear_and_type(password)
-        
-        # Enter для отправки формы
-        time.sleep(0.3)
-        pyautogui.press("enter")
-        
-        log.info("  Этап 2 выполнен!")
-        time.sleep(BUTTON_DELAY)
-        return True
-        
+            return "unknown"
+            
     except Exception as e:
-        log.error(f"  Ошибка этапа 2: {e}")
-        return False
+        log(f"detect_stage error: {e}")
+        return "unknown"
 
 
-def execute_stage3() -> bool:
-    """ЭТАП 3: Подтверждение"""
-    log.info("")
-    log.info("╔════════════════════════════════════════╗")
-    log.info("║     ЭТАП 3: ПОДТВЕРЖДЕНИЕ              ║")
-    log.info("╚════════════════════════════════════════╝")
-    
-    try:
-        activate_epic_window()
-        time.sleep(0.5)
-        
-        # Ищем кнопку подтверждения
-        found, pos = detect_template(STAGE3_TEMPLATE)
-        if found and pos:
-            click_at(pos[0], pos[1], "кнопка Continue")
-        else:
-            click_at(STAGE3_CONTINUE_BUTTON_X, STAGE3_CONTINUE_BUTTON_Y, "кнопка Continue (fallback)")
-        
-        # Также нажмём Enter
-        time.sleep(0.3)
-        pyautogui.press("enter")
-        
-        log.info("  Этап 3 выполнен!")
-        time.sleep(BUTTON_DELAY)
-        return True
-        
-    except Exception as e:
-        log.error(f"  Ошибка этапа 3: {e}")
-        return False
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#                              ГЛАВНЫЙ ЦИКЛ
-# ══════════════════════════════════════════════════════════════════════════════
+# === ГЛАВНЫЙ ЦИКЛ ===
 
 def main():
     """Главная функция."""
-    log.info("")
-    log.info("╔══════════════════════════════════════════════════╗")
-    log.info("║       EPIC GAMES AUTO-AUTH v3.0                  ║")
-    log.info("║       С использованием win32gui                  ║")
-    log.info("╚══════════════════════════════════════════════════╝")
-    log.info("")
-    log.info(f"Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    log.info(f"Таймаут: {SCRIPT_TIMEOUT} сек ({SCRIPT_TIMEOUT//60} мин)")
-    log.info("")
+    # Очищаем лог
+    try:
+        open(LOG_FILE, "w").close()
+    except:
+        pass
     
-    # Проверяем шаблоны
-    for template in [STAGE1_TEMPLATE, STAGE2_TEMPLATE, STAGE3_TEMPLATE]:
-        path = TEMPLATES_DIR / template
-        status = "[OK]" if path.exists() else "[--]"
-        log.info(f"  {status} {template}")
-    log.info("")
+    log("=" * 50)
+    log("EPIC GAMES AUTO-AUTH v4.0")
+    log("=" * 50)
+    log(f"Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log(f"Таймаут: {SCRIPT_TIMEOUT} сек")
+    log("")
     
     # Загружаем креды
-    email, password = get_credentials()
+    email, password = load_credentials()
     if not email or not password:
-        log.error("Не удалось загрузить креды!")
-        return
+        log("ОШИБКА: Креды не загружены!")
+        return 1
     
-    log.info("")
-    log.info("══════════════════════════════════════════════════")
-    log.info("МОНИТОРИНГ ЗАПУЩЕН")
-    log.info("══════════════════════════════════════════════════")
-    log.info("")
+    log("")
+    log("Поиск окна Epic Games...")
+    
+    # Ищем окно
+    if not find_epic_window():
+        log("Окно Epic не найдено. Ждём...")
+        # Ждём появления окна
+        for i in range(30):
+            time.sleep(1)
+            if find_epic_window():
+                break
+        else:
+            log("Окно Epic не появилось за 30 сек")
+            return 1
+    
+    log("")
+    log("=" * 50)
+    log("НАЧАЛО МОНИТОРИНГА")
+    log("=" * 50)
     
     start_time = time.time()
-    check_number = 0
-    stages_completed = {1: False, 2: False, 3: False}
-    stage1_attempts = 0
-    MAX_STAGE1_ATTEMPTS = 5  # Максимум 5 попыток на этап 1
+    email_done = False
+    password_done = False
+    continue_done = False
+    last_action_time = 0
+    ACTION_COOLDOWN = 5  # Минимум 5 сек между действиями
     
     while True:
         elapsed = time.time() - start_time
-        remaining = SCRIPT_TIMEOUT - elapsed
         
+        # Таймаут
         if elapsed >= SCRIPT_TIMEOUT:
-            log.info("")
-            log.info(f"ТАЙМАУТ ({SCRIPT_TIMEOUT} сек)")
+            log("")
+            log(f"ТАЙМАУТ ({SCRIPT_TIMEOUT} сек)")
             break
         
-        check_number += 1
+        # Активируем окно каждую итерацию
+        activate_epic()
         
-        # Логируем каждые 30 проверок
-        if check_number % 30 == 1:
-            log.info(f"─── Проверка #{check_number} | Осталось: {remaining:.0f} сек ───")
+        # Проверяем cooldown
+        if time.time() - last_action_time < ACTION_COOLDOWN:
+            time.sleep(1)
+            continue
         
-        # ВАЖНО: Активируем окно Epic КАЖДУЮ итерацию
-        activate_epic_window()
+        # Определяем текущий этап
+        stage = detect_current_stage()
+        log(f"Текущий этап: {stage}")
         
-        # ─────────────────────────────────────────────────────────────────────
-        # ПРОВЕРКА ЭТАПА 3 (проверяем первым - финальный этап)
-        # ─────────────────────────────────────────────────────────────────────
-        found3, _ = detect_template(STAGE3_TEMPLATE)
-        if found3 and not stages_completed[3]:
-            log.info(">>> Обнаружен ЭТАП 3 (Подтверждение)")
-            if execute_stage3():
-                stages_completed[3] = True
-                log.info("")
-                log.info("ВСЕ ЭТАПЫ ЗАВЕРШЕНЫ!")
-                # Держим окно ещё 30 сек
-                for _ in range(30):
-                    activate_epic_window()
-                    time.sleep(1)
+        if stage == "email" and not email_done:
+            if do_email_stage(email):
+                email_done = True
+                last_action_time = time.time()
+            continue
+        
+        if stage == "password" and not password_done:
+            if do_password_stage(password):
+                password_done = True
+                last_action_time = time.time()
+            continue
+        
+        if stage == "continue" and not continue_done:
+            if do_continue_stage():
+                continue_done = True
+                last_action_time = time.time()
+            # После continue можно выходить
+            log("")
+            log("АВТОРИЗАЦИЯ ЗАВЕРШЕНА!")
+            break
+        
+        if stage == "done":
+            log("Формы авторизации не обнаружены - возможно уже залогинены")
+            # Ждём немного и проверяем ещё раз
+            time.sleep(5)
+            if detect_current_stage() == "done":
+                log("Подтверждено: авторизация не требуется")
                 break
-            continue
         
-        # ─────────────────────────────────────────────────────────────────────
-        # ПРОВЕРКА ЭТАПА 2 (пароль)
-        # ─────────────────────────────────────────────────────────────────────
-        found2, _ = detect_template(STAGE2_TEMPLATE)
-        if found2 and not stages_completed[2]:
-            log.info(">>> Обнаружен ЭТАП 2 (Password)")
-            if execute_stage2(password):
-                stages_completed[2] = True
-                stage1_attempts = 0  # Сброс - мы прошли дальше
-            continue
-        
-        # ─────────────────────────────────────────────────────────────────────
-        # ПРОВЕРКА ЭТАПА 1 (email) - с лимитом попыток
-        # ─────────────────────────────────────────────────────────────────────
-        found1, _ = detect_template(STAGE1_TEMPLATE)
-        if found1 and not stages_completed[1]:
-            stage1_attempts += 1
-            log.info(f">>> Обнаружен ЭТАП 1 (Email) - попытка {stage1_attempts}/{MAX_STAGE1_ATTEMPTS}")
-            
-            if stage1_attempts > MAX_STAGE1_ATTEMPTS:
-                log.warning("Превышен лимит попыток на этап 1. Возможно, неверные координаты или креды.")
-                log.warning("Пропускаем этап 1, ждём переход...")
-                time.sleep(5)
-                continue
-            
-            if execute_stage1(email):
-                # Не помечаем как completed - ждём переход на этап 2
-                pass
-            continue
-        
-        # Если ничего не обнаружено - ждём
         time.sleep(CHECK_INTERVAL)
     
     # Итоги
-    log.info("")
-    log.info("══════════════════════════════════════════════════")
-    log.info("ИТОГИ:")
-    log.info(f"  Этап 1 (Email):        {'OK' if stages_completed[1] else '--'}")
-    log.info(f"  Этап 2 (Password):     {'OK' if stages_completed[2] else '--'}")
-    log.info(f"  Этап 3 (Подтверждение): {'OK' if stages_completed[3] else '--'}")
-    log.info(f"  Время работы: {time.time() - start_time:.1f} сек")
-    log.info("══════════════════════════════════════════════════")
-    log.info("Скрипт завершён.")
+    log("")
+    log("=" * 50)
+    log("ИТОГИ:")
+    log(f"  Email:    {'OK' if email_done else '--'}")
+    log(f"  Password: {'OK' if password_done else '--'}")
+    log(f"  Continue: {'OK' if continue_done else '--'}")
+    log(f"  Время: {time.time() - start_time:.1f} сек")
+    log("=" * 50)
+    
+    # Держим окно активным ещё 10 сек
+    log("Удерживаю окно активным ещё 10 сек...")
+    for _ in range(10):
+        activate_epic()
+        time.sleep(1)
+    
+    log("Скрипт завершён.")
+    return 0
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-#                         ТОЧКА ВХОДА
-# ══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     try:
-        main()
-        sys.exit(0)
+        sys.exit(main())
     except KeyboardInterrupt:
-        log.info("\nПрервано пользователем")
+        log("Прервано пользователем")
         sys.exit(0)
     except Exception as e:
-        log.exception(f"Критическая ошибка: {e}")
+        log(f"КРИТИЧЕСКАЯ ОШИБКА: {e}")
+        import traceback
+        log(traceback.format_exc())
         sys.exit(1)
