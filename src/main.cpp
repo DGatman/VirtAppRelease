@@ -1348,18 +1348,49 @@ void printSystemInfo() {
 int main() {
 	
 	// ═══════════════════════════════════════════════════════════════════════════
-	// Инициализация Dashboard UI v3.0
+	// САМЫЙ РАННИЙ ВЫВОД - до любой инициализации
+	// Если это не появится - проблема в DLL или загрузке
 	// ═══════════════════════════════════════════════════════════════════════════
-	initConsole();
-	initDashboard();
 	
-	string version = "v3.0";  // Dashboard UI. Enterprise-level console interface.
-	string status = "Baldeet";
-	curl_global_init(CURL_GLOBAL_DEFAULT);
-	void* program_instance = try_open_single_program("407637B6-98D3-4EFC-A838-40BBB5204CF1");
-	if (!program_instance) {
-		return 0;
-	};
+	// Убеждаемся что консоль работает
+	HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	if (hStdOut == INVALID_HANDLE_VALUE || hStdOut == NULL) {
+		// Попробуем выделить консоль
+		AllocConsole();
+		hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+	}
+	
+	printf("=== VirtApp STARTING ===\n");
+	printf("Version: v3.2 (Build: %s %s)\n", __DATE__, __TIME__);
+	printf("Initializing...\n");
+	fflush(stdout);
+	
+	try {
+		// ═══════════════════════════════════════════════════════════════════════════
+		// Инициализация Dashboard UI v3.0
+		// ═══════════════════════════════════════════════════════════════════════════
+		printf("[1/5] Console init...\n"); fflush(stdout);
+		initConsole();
+		
+		printf("[2/5] Dashboard init...\n"); fflush(stdout);
+		initDashboard();
+		
+		string version = "v3.2";  // Dashboard UI. Enterprise-level console interface.
+		string status = "Baldeet";
+		
+		printf("[3/5] CURL init...\n"); fflush(stdout);
+		curl_global_init(CURL_GLOBAL_DEFAULT);
+		
+		printf("[4/5] Single instance check...\n"); fflush(stdout);
+		void* program_instance = try_open_single_program("407637B6-98D3-4EFC-A838-40BBB5204CF1");
+		if (!program_instance) {
+			printf("ERROR: Another instance is running!\n");
+			printf("Press any key to exit...\n");
+			_getch();
+			return 0;
+		}
+		
+		printf("[5/5] Ready!\n"); fflush(stdout);
 
 
 	std::vector<std::string> ipList = {
@@ -1387,6 +1418,7 @@ int main() {
 	printSection("TIME SYNCHRONIZATION");
 	printInfo("Syncing system time (required for SSL)...");
 	{
+		// Используем быстрый скрипт с уменьшенным таймаутом
 		string set_time_command = "scripts\\set_local_time.py";
 		string result = exec(set_time_command.c_str());
 		if (result.find("successfully") != string::npos || result.find("SUCCESS") != string::npos) {
@@ -1398,6 +1430,29 @@ int main() {
 	printSectionEnd();
 	
 	context = interception_create_context();
+	
+	// ═══════════════════════════════════════════════════════════════════════════
+	// MOUSE PASS-THROUGH THREAD (Фикс "мертвой мышки")
+	// ═══════════════════════════════════════════════════════════════════════════
+	// Этот поток будет постоянно читать сигналы от мыши и клавиатуры
+	// и сразу же отправлять их в систему, если они пришли от физического устройства.
+	// Это позволяет управлять ПК даже когда бот занят своими делами.
+	thread input_passthrough([&]() {
+		InterceptionContext ctx = interception_create_context();
+		interception_set_filter(ctx, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
+		interception_set_filter(ctx, interception_is_mouse, INTERCEPTION_FILTER_MOUSE_ALL);
+		
+		InterceptionDevice dev;
+		InterceptionStroke stroke;
+		
+		while (interception_receive(ctx, dev = interception_wait(ctx), (InterceptionStroke*)&stroke, 1) > 0) {
+			// Просто пересылаем всё, что пришло от физических устройств
+			interception_send(ctx, dev, (InterceptionStroke*)&stroke, 1);
+		}
+		interception_destroy_context(ctx);
+	});
+	input_passthrough.detach(); // Отпускаем поток в свободное плавание
+
 	Sleep(1000);
 
 	tm targetTimeMin = {};
@@ -1489,6 +1544,11 @@ int main() {
 	bool afkonly = false;
 	bool banned = false;
 	string PCName = "TEST_4_S7_32";
+	
+	// Epic Games credentials (для автоматической авторизации)
+	string epicLogin = "";
+	string epicPassword = "";
+	bool epicAuthEnabled = false;  // Флаг: запускать ли скрипт авторизации Epic
 
 	map<string, string> config;
 	while (!startup_config.eof())
@@ -1577,6 +1637,64 @@ int main() {
 		afkonly = true;
 	}
 	
+	// Epic Games credentials - чтение из конфига
+	if (!config["EpicLogin"].empty())
+	{
+		epicLogin = config["EpicLogin"];
+		logprint("Epic Login: " + epicLogin.substr(0, 3) + "***", currentTm);
+	}
+	if (!config["EpicPassword"].empty())
+	{
+		epicPassword = config["EpicPassword"];
+		logprint("Epic Password: ***", currentTm);
+	}
+	
+	// Проверяем заполнены ли Epic credentials
+	if (!epicLogin.empty() && !epicPassword.empty())
+	{
+		epicAuthEnabled = true;
+		logprint("Epic Auth: ENABLED", currentTm);
+	}
+	else
+	{
+		epicAuthEnabled = false;
+		logprint("Epic Auth: DISABLED (credentials not set)", currentTm);
+	}
+	
+	// Автогенерация полей Epic в config.txt если их нет
+	if (config.find("EpicLogin") == config.end() || config.find("EpicPassword") == config.end())
+	{
+		logprint("Epic fields missing in config, adding...", currentTm);
+		std::ifstream configReadFile("config.txt");
+		std::string configContent;
+		if (configReadFile.is_open())
+		{
+			std::stringstream buffer;
+			buffer << configReadFile.rdbuf();
+			configContent = buffer.str();
+			configReadFile.close();
+			
+			// Добавляем поля Epic если их нет
+			bool needsEpicLogin = (configContent.find("EpicLogin=") == std::string::npos);
+			bool needsEpicPassword = (configContent.find("EpicPassword=") == std::string::npos);
+			
+			if (needsEpicLogin || needsEpicPassword)
+			{
+				std::ofstream configWriteFile("config.txt", std::ios::app);
+				if (configWriteFile.is_open())
+				{
+					configWriteFile << "\n# Epic Games (auto-auth)\n";
+					if (needsEpicLogin)
+						configWriteFile << "EpicLogin=;\n";
+					if (needsEpicPassword)
+						configWriteFile << "EpicPassword=;\n";
+					configWriteFile.close();
+					logprint("Epic fields added to config.txt", currentTm);
+				}
+			}
+		}
+	}
+	
 	// Dashboard - Панель сессии с данными из конфига
 	dashPrintSessionPanel(configLogin.empty() ? "Unknown" : configLogin, configPCName, extIP);
 	
@@ -1634,7 +1752,8 @@ int main() {
 		{"/photo", "/status"},
 		{"/afk", "/ruletka"},
 		{"/vip", "/lvl"},
-		{"/restart", "/help"}
+		{"/restart", "/help"},
+		{"/backup"}
 		}, keyboardWithLayout);
 	
 	// Время запуска для uptime
@@ -2118,6 +2237,31 @@ int main() {
 			bot.getApi().sendMessage(message->chat->id, "Failed to send screenshot. Error: " + (string)(e.what()));
 		}
 		});
+
+	bot.getEvents().onCommand("backup", [&bot, &timeout](Message::Ptr message) {
+		if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
+		{
+			cout << "Ignored command due the timeout!" << endl;
+			return;
+		}
+		if (find(tgListSecurity.begin(), tgListSecurity.end(), to_string(message->from->id)) == tgListSecurity.end())
+		{
+			cout << "Ignored command due security settings" << endl;
+			bot.getApi().sendMessage(message->chat->id, "You don't have permission to use this bot");
+			return;
+		}
+		
+		bot.getApi().sendMessage(message->chat->id, "⏳ Creating Golden Session Backup...");
+		
+		// Execute Python script with --backup flag
+		string result = exec("python scripts/epic_auth.py --backup");
+		
+		if (result.find("BACKUP_OK") != string::npos) {
+			bot.getApi().sendMessage(message->chat->id, "✅ Backup Created Successfully!\nSaved to: Documents/EpicSessionBackup");
+		} else {
+			bot.getApi().sendMessage(message->chat->id, "❌ Backup Failed!\nCheck logs or try manually.");
+		}
+	});
 
 	bot.getEvents().onCommand("photofile", [&bot, &photoFilePath, &photoMimeType, &scan, &afk, &status, &ruletka, &keyboardWithLayout, &currentTm, &timeout](Message::Ptr message) {
 		// Проверяем, что сообщение не слишком старое (например, старше 120 секунд)
@@ -2825,7 +2969,38 @@ int main() {
 		while (!isRunningP(L"GTA5.exe")) {
 			Sleep(3000);
 			ShellExecuteA(nullptr, "open", "C:\\Program Files (x86)\\Epic Games\\Launcher\\Portal\\Binaries\\Win32\\EpicGamesLauncher.exe", nullptr, nullptr, SW_SHOWNORMAL);
-			Sleep(5000);
+			Sleep(3000);
+			
+			// ═══════════════════════════════════════════════════════════════════════════
+			// EPIC GAMES AUTO-AUTH - Синхронный запуск (C++ ждёт завершения Python)
+			// Скрипт работает до 5 минут, держит окно Epic активным на переднем плане
+			// После завершения скрипта C++ продолжает работу
+			// ═══════════════════════════════════════════════════════════════════════════
+			if (epicAuthEnabled)
+			{
+				logprint("=== EPIC AUTH START ===", currentTm);
+				logprint("Running epic_auth.py (up to 5 min)...", currentTm);
+				logprint("Script will keep Epic window active and handle login if needed", currentTm);
+				
+				// Синхронный запуск - C++ ждёт пока Python завершится!
+				// Используем system() без start - это блокирующий вызов
+				int result = system("python scripts/epic_auth.py");
+				
+				if (result == 0)
+				{
+					logprint("=== EPIC AUTH COMPLETE (success) ===", currentTm);
+				}
+				else
+				{
+					logprint("=== EPIC AUTH COMPLETE (code: " + to_string(result) + ") ===", currentTm);
+				}
+			}
+			else
+			{
+				logprint("Epic auth script SKIPPED (credentials not set in config.txt)", currentTm);
+			}
+			
+			Sleep(2000);
 			system("start C:\\Users\\%USERNAME%\\Desktop\\GTA5.lnk");
 			logprint("Started launcher", currentTm);
 			while (!isRunning("RAGE Multiplayer"))
@@ -4415,5 +4590,21 @@ int main() {
 	interception_destroy_context(context);
 	scan.end();
 	close_single_program(program_instance);
+	
+	} catch (const std::exception& e) {
+		printf("\n\n=== CRITICAL ERROR ===\n");
+		printf("Exception: %s\n", e.what());
+		printf("Press any key to exit...\n");
+		fflush(stdout);
+		_getch();
+		return 1;
+	} catch (...) {
+		printf("\n\n=== UNKNOWN CRITICAL ERROR ===\n");
+		printf("Press any key to exit...\n");
+		fflush(stdout);
+		_getch();
+		return 1;
+	}
+	
 	return 0;
 }

@@ -26,8 +26,8 @@ from email.utils import parsedate_to_datetime
 MOSCOW_OFFSET = timedelta(hours=3)
 
 # Configuration
-MAX_GLOBAL_RETRIES = 10  # Total retry cycles through all sources
-RETRY_DELAY = 3  # Delay between individual source attempts
+MAX_GLOBAL_RETRIES = 2  # Reduced from 10 to 2 for speed
+RETRY_DELAY = 1  # Reduced from 3 to 1 for speed
 CYCLE_DELAY = 10  # Delay between full cycles
 REQUEST_TIMEOUT = 15  # HTTP request timeout
 
