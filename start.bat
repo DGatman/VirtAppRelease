@@ -1,6 +1,7 @@
 @echo off
 title VirtApp Watchdog
 chcp 65001 >nul
+cd /d "%~dp0"
 
 :: ==============================================================
 :: VirtApp Watchdog & Auto-Updater
