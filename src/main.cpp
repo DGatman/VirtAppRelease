@@ -2920,6 +2920,36 @@ int main() {
 		Sleep(400);
 	}
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// FPS LIMIT CONTROL (Bandicam)
+	// ═══════════════════════════════════════════════════════════════════════════
+	auto setFpsLimit = [&](bool enable) {
+		HKEY hKey;
+		LPCSTR subKey = "Software\\BANDISOFT\\BANDICAM\\OPTION";
+		LPCSTR valueName = "bFpsLimit";
+		DWORD value;
+		DWORD dataSize = sizeof(value);
+		DWORD valueType;
+
+		if (RegOpenKeyExA(HKEY_CURRENT_USER, subKey, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+			if (RegQueryValueExA(hKey, valueName, NULL, &valueType, (LPBYTE)&value, &dataSize) == ERROR_SUCCESS) {
+				// value == 1 (Limit ON), value == 0 (Limit OFF)
+				bool isEnabled = (value == 1);
+				
+				if (isEnabled != enable) {
+					logprint(enable ? "Enabling FPS limit (Low FPS)..." : "Disabling FPS limit (High FPS for loading)...", currentTm);
+					interception_send(context, device, (InterceptionStroke*)&slash_down, 1);
+					Sleep(100);
+					interception_send(context, device, (InterceptionStroke*)&slash_up, 1);
+					Sleep(500); // Wait for Bandicam to react
+				} else {
+					// logprint(enable ? "FPS limit already ENABLED" : "FPS limit already DISABLED", currentTm);
+				}
+			}
+			RegCloseKey(hKey);
+		}
+	};
+
 	thread hotkeys([&]()
 		{
 			string relogin_is;
@@ -3051,6 +3081,10 @@ int main() {
 			Sleep(2000);
 			system("start C:\\Users\\%USERNAME%\\Desktop\\GTA5.lnk");
 			logprint("Started launcher", currentTm);
+			
+			// DISABLE FPS LIMIT FOR FASTER LOADING
+			setFpsLimit(false);
+			
 			while (!isRunning("RAGE Multiplayer"))
 			{
 				logprint("Waiting launcher", currentTm);
@@ -3165,6 +3199,9 @@ int main() {
 					logprint("Redpix count: " + to_string(redpix), currentTm);
 					if (redpix >= 6)
 					{
+						// ENABLE FPS LIMIT FOR STABILITY (Login Screen)
+						setFpsLimit(true);
+						
 						//Rockstar sign in
 
 						//Copying mail to clipboard
