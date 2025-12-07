@@ -1,265 +1,194 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-EPIC GAMES AUTO-AUTH v7.0 - GOLDEN SESSION (ANTI-CRASH)
-=======================================================
-СИСТЕМА "ЗОЛОТОЙ СЛЕПОК" (STATE RESTORATION)
-
-1. ПРИНЦИП РАБОТЫ:
-   - Мы не надеемся на то, что Эпик "запомнил" нас с прошлого раза.
-   - Мы КАЖДЫЙ РАЗ при запуске стираем его память и подкладываем "Идеальный Сейв".
-   - Это гарантирует вход даже если ПК выключили из розетки.
-
-2. РЕЖИМЫ:
-   - [DEFAULT]: Восстановление сессии -> Запуск Эпика -> (Если надо) Ввод пароля.
-   - [--backup]: Создание "Золотого слепка" из текущей сессии (для ТГ бота).
-
-3. ПУТИ:
-   - Бэкап: Документы/EpicSessionBackup
-   - Рабочая папка: AppData/Local/EpicGamesLauncher/Saved
-"""
-
 import os
 import sys
-import time
 import shutil
-import ctypes
-import argparse
+import time
 import subprocess
-from pathlib import Path
+import ctypes
 from datetime import datetime
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#                              НАСТРОЙКИ (SETTINGS)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ==================================================================================
+# CONFIGURATION
+# ==================================================================================
+LOCAL_APP_DATA = os.environ.get('LOCALAPPDATA')
+USER_PROFILE = os.environ.get('USERPROFILE')
 
-# Пути к папкам (используем переменные окружения Windows)
-# ВАЖНО: Бэкап ищем в Documents\Saved (как вы указали)
-BACKUP_DIR = os.path.expandvars(r'%USERPROFILE%\Documents\Saved')
-TARGET_DIR = os.path.expandvars(r'%LOCALAPPDATA%\EpicGamesLauncher\Saved')
+# Пути к папкам
+EPIC_SOURCE_DIR = os.path.join(LOCAL_APP_DATA, r"EpicGamesLauncher\Saved")
+BACKUP_DIR = os.path.join(USER_PROFILE, r"Documents\GTA5rpVirt_EpicBackup")
 
-# Путь к EXE Эпика (Стандартный)
+# Путь к экзешнику Epic Games
 EPIC_EXE_PATH = r"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe"
 
-# Процессы, которые нужно убить перед операциями (Только Epic)
-PROCESSES_TO_KILL = [
-    "EpicGamesLauncher.exe",
-    "EpicWebHelper.exe",
-    "UnrealCEFSubProcess.exe"
-]
+# Интервал сохранения (в секундах) для Guard режима
+GUARD_INTERVAL = 300  # 5 минут
 
-# Настройки скрипта
-SCRIPT_TIMEOUT = 300      # 5 минут (на случай если придется вводить пароль)
-CHECK_INTERVAL = 2        # Интервал проверки
-SCREEN_WIDTH = 1280
-SCREEN_HEIGHT = 720
+# ==================================================================================
+# SYSTEM FUNCTIONS
+# ==================================================================================
 
-# Пути к файлам скрипта
-SCRIPT_DIR = Path(__file__).parent.absolute()
-RELEASE_DIR = SCRIPT_DIR.parent
-IMAGES_DIR = RELEASE_DIR / "data" / "epic"
-CONFIG_FILE = RELEASE_DIR / "config.txt"
-LOG_FILE = RELEASE_DIR / "epic_auth.log"
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#                              ЛОГИРОВАНИЕ
-# ═══════════════════════════════════════════════════════════════════════════════
-
-LOG_HANDLE = None
-
-def log(msg):
-    """Запись в лог и консоль."""
-    global LOG_HANDLE
+def log(message):
+    """Логирование с меткой времени"""
     timestamp = datetime.now().strftime("%H:%M:%S")
-    line = f"[{timestamp}] {msg}"
-    print(line, flush=True)
-    try:
-        if LOG_HANDLE is None:
-            LOG_HANDLE = open(LOG_FILE, "w", encoding="utf-8")
-        LOG_HANDLE.write(line + "\n")
-        LOG_HANDLE.flush()
-    except: pass
+    print(f"[{timestamp}] {message}")
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#                           СИСТЕМНЫЕ ФУНКЦИИ
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def is_game_running():
-    """Проверка: Запущена ли игра (GTA5 или RageMP)."""
+def is_process_running(process_name):
+    """Проверяет, запущен ли процесс, через tasklist (без лишних библиотек)"""
     try:
-        # Используем tasklist для проверки процессов
-        output = subprocess.check_output("tasklist", shell=True).decode('cp866', errors='ignore')
-        for proc in ["GTA5.exe", "ragemp_v.exe", "playgtav.exe"]:
-            if proc.lower() in output.lower():
-                return True
+        # Фильтр по имени процесса, вывод в csv без заголовков
+        cmd = f'tasklist /FI "IMAGENAME eq {process_name}" /FO CSV /NH'
+        output = subprocess.check_output(cmd, shell=True).decode('cp866', errors='ignore')
+        return process_name.lower() in output.lower()
+    except Exception:
+        return False
+
+def kill_process(process_name):
+    """Принудительное завершение процесса"""
+    log(f"Killing {process_name}...")
+    os.system(f"taskkill /f /im {process_name} >nul 2>&1")
+
+def copy_tree_recursive(src, dst):
+    """Рекурсивное копирование папки с заменой"""
+    if not os.path.exists(src):
+        log(f"Warning: Source not found {src}")
+        return
+
+    if os.path.exists(dst):
+        shutil.rmtree(dst)
+    
+    try:
+        shutil.copytree(src, dst, dirs_exist_ok=True, ignore_dangling_symlinks=True)
+        log(f"Synced: {src} -> {dst}")
     except Exception as e:
-        log(f"WARNING: Could not check processes: {e}")
-    return False
+        log(f"Copy error (non-critical): {e}")
 
-def kill_processes():
-    """
-    Жесткое убийство всех процессов, связанных с Epic/GTA.
-    Гарантирует, что файлы не заняты.
-    """
-    log(">>> KILLING PROCESSES...")
-    for proc in PROCESSES_TO_KILL:
-        # /F - force, /IM - image name, /T - tree (kill childs)
-        cmd = f"taskkill /F /IM {proc} /T >nul 2>&1"
-        os.system(cmd)
+# ==================================================================================
+# CORE LOGIC
+# ==================================================================================
+
+def perform_backup():
+    """CAPTURE: Копирует текущую сессию из Epic в Documents"""
+    log("Performing BACKUP (Epic -> Docs)...")
     
-    # Ждем, пока система освободит хендлы файлов
-    time.sleep(3)
-    log("  Processes terminated.")
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#                           РАБОТА С ФАЙЛАМИ (CORE)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def create_backup():
-    """
-    [РУЧНОЙ РЕЖИМ] Создание "Золотого слепка".
-    Копирует текущую папку Saved в Документы.
-    """
-    log("=" * 60)
-    log("CREATING GOLDEN SESSION BACKUP")
-    log("=" * 60)
+    # 1. Config (Настройки пользователя)
+    copy_tree_recursive(
+        os.path.join(EPIC_SOURCE_DIR, "Config"),
+        os.path.join(BACKUP_DIR, "Config")
+    )
     
-    if not os.path.exists(TARGET_DIR):
-        log(f"ERROR: Source folder not found: {TARGET_DIR}")
-        log("Please login to Epic Games first!")
-        return False
-
-    # 1. Убиваем процессы (чтобы скопировать все файлы)
-    kill_processes()
+    # 2. Data/Webcache (Токены авторизации)
+    # Epic часто держит файлы webcache заблокированными.
+    # Мы используем ignore_errors=True при копировании, чтобы взять то, что доступно.
+    src_web = os.path.join(EPIC_SOURCE_DIR, "webcache")
+    dst_web = os.path.join(BACKUP_DIR, "webcache")
     
-    # 2. Удаляем старый бэкап если есть
-    if os.path.exists(BACKUP_DIR):
-        log(f"Removing old backup: {BACKUP_DIR}")
-        try:
-            shutil.rmtree(BACKUP_DIR)
-        except Exception as e:
-            log(f"ERROR removing old backup: {e}")
-            return False
-            
-    # 3. Копируем
-    log(f"Copying {TARGET_DIR} -> {BACKUP_DIR}")
-    try:
-        shutil.copytree(TARGET_DIR, BACKUP_DIR)
-        log("SUCCESS: Backup created!")
-        return True
-    except Exception as e:
-        log(f"ERROR copying backup: {e}")
-        return False
-
-def restore_session():
-    """
-    [АВТО РЕЖИМ] Восстановление сессии.
-    Удаляет текущую папку и ставит бэкап.
-    """
-    log(">>> RESTORING SESSION...")
-    
-    if not os.path.exists(BACKUP_DIR):
-        log("  No backup found. Skipping restore.")
-        return False
+    if os.path.exists(src_web):
+        if os.path.exists(dst_web):
+            try:
+                shutil.rmtree(dst_web)
+            except:
+                pass # Если не удалилось, перезапишем поверх
         
-    # 1. Удаляем текущую папку (WIPE)
-    if os.path.exists(TARGET_DIR):
-        log(f"  Wiping current AppData folder...")
         try:
-            shutil.rmtree(TARGET_DIR)
-        except Exception as e:
-            log(f"  WARNING: Could not delete folder: {e}")
-            # Пробуем еще раз через паузу
-            time.sleep(2)
-            try: shutil.rmtree(TARGET_DIR)
-            except: pass
+            shutil.copytree(src_web, dst_web, dirs_exist_ok=True)
+        except Exception:
+            pass # Игнорируем ошибки занятых файлов, главное скопировать Cookies
             
-    # 2. Копируем бэкап (RESTORE)
-    log(f"  Restoring from backup...")
-    try:
-        shutil.copytree(BACKUP_DIR, TARGET_DIR)
-        log("  Session restored successfully!")
-        return True
-    except Exception as e:
-        log(f"  ERROR restoring session: {e}")
-        return False
+    log("Backup completed.")
+
+def perform_restore():
+    """RESTORE: Восстанавливает сессию из Documents в Epic"""
+    log("Performing RESTORE (Docs -> Epic)...")
+    if not os.path.exists(BACKUP_DIR):
+        log("No backup found. Skipping restore.")
+        return
+
+    # Создаем папку назначения если нет
+    if not os.path.exists(EPIC_SOURCE_DIR):
+        os.makedirs(EPIC_SOURCE_DIR)
+
+    # Восстанавливаем
+    copy_tree_recursive(BACKUP_DIR, EPIC_SOURCE_DIR)
+    log("Restore completed.")
 
 def launch_epic():
-    """Запуск Epic Games Launcher."""
-    log(">>> LAUNCHING EPIC GAMES...")
+    """Запуск Epic Games Launcher"""
+    log("Launching Epic Games Launcher...")
     if os.path.exists(EPIC_EXE_PATH):
-        subprocess.Popen(EPIC_EXE_PATH)
-        log("  Launcher started.")
-        return True
+        subprocess.Popen([EPIC_EXE_PATH, "-silent", "-hidetray"], close_fds=True)
     else:
-        log(f"ERROR: Epic EXE not found at {EPIC_EXE_PATH}")
-        return False
+        log(f"Error: Epic EXE not found at {EPIC_EXE_PATH}")
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#                              MAIN ENTRY POINT
-# ═══════════════════════════════════════════════════════════════════════════════
+# ==================================================================================
+# MODES
+# ==================================================================================
+
+def guard_mode():
+    """
+    Режим СТРАЖА.
+    Висит в фоне и каждые 5 минут обновляет бэкап, пока Эпик запущен.
+    """
+    # Ждем немного перед первым запуском, чтобы основной процесс успел выйти
+    time.sleep(10)
+    
+    while True:
+        # Проверяем, жива ли игра или лаунчер
+        epic_alive = is_process_running("EpicGamesLauncher.exe")
+        gta_alive = is_process_running("GTA5.exe") or is_process_running("ragemp_v.exe")
+        
+        if epic_alive or gta_alive:
+            # Если игра запущена, токен точно свежий. Бэкапим.
+            perform_backup()
+        else:
+            # Если всё закрыто - страж больше не нужен, выходим.
+            break
+            
+        time.sleep(GUARD_INTERVAL)
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--backup", action="store_true", help="Create Golden Session Backup")
-    args = parser.parse_args()
+    # Проверка аргументов запуска
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--guard":
+            guard_mode()
+            return
+        elif sys.argv[1] == "--backup-only":
+            log("--- EMERGENCY BACKUP REQUESTED ---")
+            perform_backup()
+            return
 
-    log("=" * 60)
-    log("EPIC GAMES MANAGER v7.1 - IMMORTAL CYCLE")
-    log("=" * 60)
-    log(f"Time: {datetime.now()}")
+    log("--- IMMORTAL CYCLE v8.0 START ---")
 
-    # 1. РЕЖИМ БЭКАПА (Вызывается из ТГ бота вручную)
-    if args.backup:
-        if create_backup():
-            print("BACKUP_OK") # Маркер для бота
-            sys.exit(0)
-        else:
-            print("BACKUP_FAIL")
-            sys.exit(1)
-
-    # 2. РЕЖИМ ЗАПУСКА (Автоматический)
-    
-    # Шаг 0: Проверка на запущенную игру
-    if is_game_running():
-        log("GAME IS RUNNING (GTA5/RageMP). Skipping Auth & Restore.")
-        log("Assuming session is active. Exiting.")
-        sys.exit(0)
-
-    # Шаг 1: Убиваем всё лишнее перед началом
-    kill_processes()
-    
-    # Шаг 2: Восстанавливаем сессию (из Документов в AppData)
-    # Если восстановление прошло успешно, запускаем цикл обновления токена
-    if restore_session():
-        # === ЦИКЛ БЕССМЕРТИЯ (ROLLING TOKEN) ===
-        log(">>> [IMMORTAL CYCLE] Starting Token Refresh...")
-        
-        # А. Запускаем Эпик, чтобы он обновил токены
+    # 1. SMART INIT: Проверяем, запущен ли уже Эпик
+    if is_process_running("EpicGamesLauncher.exe"):
+        log("Status: Epic Games is ALREADY RUNNING.")
+        log("Action: Skipping kill/restore. Updating backup from current session.")
+        perform_backup()
+    else:
+        log("Status: Epic Games is NOT running.")
+        log("Action: Restoring backup and launching.")
+        perform_restore()
         launch_epic()
         
-        # Б. Ждем 50 секунд (время на обмен токена) - увеличил для надежности
-        log("  Waiting 50s for Epic to refresh internal tokens...")
-        time.sleep(50)
+        # Ждем инициализации
+        log("Waiting for Epic to initialize (20s)...")
+        time.sleep(20)
         
-        # В. Убиваем Эпик, чтобы забрать файлы
-        kill_processes()
-        
-        # Г. Сохраняем обновленные файлы обратно в Документы
-        log("  Updating Golden Session (Overwriting Backup)...")
-        create_backup()
-        
-        log(">>> [IMMORTAL CYCLE] Token Refreshed Successfully!")
-    
-    # Шаг 3: Финальный запуск Эпика (уже для игры)
-    launch_epic()
-    
-    log("Script finished.")
-    if LOG_HANDLE: LOG_HANDLE.close()
+        # Делаем первичный бэкап
+        perform_backup()
+
+    # 2. ЗАПУСК СТРАЖА (GUARD)
+    # Запускаем этот же скрипт в отдельном процессе с флагом --guard
+    # creationflags=0x08000000 (CREATE_NO_WINDOW) чтобы не было окна консоли
+    log("Spawning Session Guard process...")
+    subprocess.Popen(
+        [sys.executable, os.path.abspath(__file__), "--guard"],
+        creationflags=0x08000000,
+        close_fds=True
+    )
+    log("Guard spawned. Main script exiting.")
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        log(f"CRITICAL: {e}")
-        sys.exit(1)
+        log(f"Critical Error: {e}")
+        time.sleep(5)

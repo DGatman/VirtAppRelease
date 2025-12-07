@@ -1345,7 +1345,19 @@ void printSystemInfo() {
 	printSectionEnd();
 }
 
+BOOL WINAPI ConsoleHandler(DWORD dwType)
+{
+	if (dwType == CTRL_CLOSE_EVENT || dwType == CTRL_C_EVENT)
+	{
+		printf("\n[VirtApp] Exiting... Performing emergency backup...\n");
+		system("python scripts/epic_auth.py --backup-only");
+		Sleep(2000);
+	}
+	return FALSE;
+}
+
 int main() {
+	SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 	
 	// ═══════════════════════════════════════════════════════════════════════════
 	// САМЫЙ РАННИЙ ВЫВОД - до любой инициализации
