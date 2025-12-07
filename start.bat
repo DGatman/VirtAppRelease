@@ -28,7 +28,7 @@ if "%ERRORLEVEL%"=="0" (
     
     :: 2. Update via Git
     echo [Update] ⬇️ Pulling updates from GitHub...
-    git remote set-url origin https://github.com/RootOne1337/VirtAppRelease.git
+    git remote set-url origin https://github.com/DGatman/VirtAppRelease.git
     git pull
     
     :: 3. Restore Configs
