@@ -13,7 +13,7 @@ timeout /t 1 >nul
 
 :: 2. Скачиваем файл напрямую (без Git)
 echo [2/3] 📥 Скачивание новой версии...
-powershell -Command "Invoke-WebRequest -Uri 'https://github.com/RootOne1337/VirtAppRelease/raw/main/VirtApp.exe' -OutFile 'VirtApp.exe'"
+powershell -Command "Invoke-WebRequest -Uri 'https://github.com/DGatman/VirtAppRelease/raw/main/VirtApp.exe' -OutFile 'VirtApp.exe'"
 
 if %errorlevel% neq 0 (
     echo.
