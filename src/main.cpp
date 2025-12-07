@@ -1442,6 +1442,20 @@ int main() {
 	printSectionEnd();
 	
 	context = interception_create_context();
+
+	// FIX: Initialize devices explicitly since we removed the input filter thread
+	// We need to find the mouse and keyboard devices to send events to them.
+	for (int i = 1; i <= INTERCEPTION_MAX_DEVICE; ++i) {
+		char hardware_id[512];
+		if (interception_get_hardware_id(context, i, hardware_id, sizeof(hardware_id)) > 0) {
+			if (interception_is_keyboard(i)) {
+				device = i;
+			}
+			else if (interception_is_mouse(i)) {
+				mouseDevice = i;
+			}
+		}
+	}
 	
 	// ═══════════════════════════════════════════════════════════════════════════
 	// MOUSE PASS-THROUGH THREAD (REMOVED)
