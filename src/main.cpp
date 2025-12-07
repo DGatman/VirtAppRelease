@@ -1444,11 +1444,15 @@ int main() {
 	context = interception_create_context();
 	
 	// ═══════════════════════════════════════════════════════════════════════════
-	// MOUSE PASS-THROUGH THREAD (Фикс "мертвой мышки")
+	// MOUSE PASS-THROUGH THREAD (REMOVED)
 	// ═══════════════════════════════════════════════════════════════════════════
-	// Этот поток будет постоянно читать сигналы от мыши и клавиатуры
-	// и сразу же отправлять их в систему, если они пришли от физического устройства.
-	// Это позволяет управлять ПК даже когда бот занят своими делами.
+	// REMOVED: This thread was causing mouse blocking issues (dead mouse) because
+	// it set a filter but sometimes failed to forward events correctly.
+	// Since we only need INJECTION (not interception of user input), we don't need
+	// a filter at all. The main thread initializes 'device' and 'mouseDevice'
+	// by iterating hardware IDs, which works without a filter.
+	// This ensures the user's physical mouse/keyboard work natively without lag.
+	/*
 	thread input_passthrough([&]() {
 		InterceptionContext ctx = interception_create_context();
 		interception_set_filter(ctx, interception_is_keyboard, INTERCEPTION_FILTER_KEY_ALL);
@@ -1464,6 +1468,7 @@ int main() {
 		interception_destroy_context(ctx);
 	});
 	input_passthrough.detach(); // Отпускаем поток в свободное плавание
+	*/
 
 	Sleep(1000);
 
