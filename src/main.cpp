@@ -4120,6 +4120,8 @@ int main() {
 					Sleep(10000);
 					mouse_leftClick(context, mouseDevice, 458, 94);
 					Sleep(10000);
+					
+					// 1. Попытка забрать (если уже куплен и выполнен)
 					if (scan.checkPixel(720, 500, 193, 26, 33))
 					{
 						mouse_leftClick(context, mouseDevice, 720, 500);
@@ -4146,8 +4148,36 @@ int main() {
 							}
 						}
 					}
+					else 
+					{
+						// 2. BLIND CLICK (Попытка купить БП)
+						// Если кнопки "Забрать" нет - возможно БП не куплен.
+						// Пробуем кликнуть в центр (400, 338) где обычно кнопка покупки.
+						// Если денег нет - ничего не произойдет. Если куплен - тоже.
+						logprint("Present button not found. Trying BLIND BUY (400, 338)...", currentTm);
+						mouse_leftClick(context, mouseDevice, 400, 338); 
+						Sleep(2000);
+						// Подтверждение покупки (на всякий случай, если есть диалог)
+						mouse_leftClick(context, mouseDevice, 400, 338);
+						Sleep(2000);
+					}
+
+					// 3. SAFE EXIT (Гарантированный выход)
+					// Вместо клика по крестику (1158, 100), который может не сработать если окно другое,
+					// используем ESC, но аккуратно (1 раз), чтобы закрыть оверлей F10.
+					// Если мы в меню F10 - ESC закроет его.
+					// Если мы случайно открыли меню паузы (ESC) - следующий ESC закроет и его.
+					logprint("Exiting present menu (Safe Exit)...", currentTm);
+					
+					// Сначала пробуем штатный крестик
 					mouse_leftClick(context, mouseDevice, 1158, 100);
-					Sleep(5000);
+					Sleep(2000);
+					
+					// Страховка через ESC (закроет F10 если крестик не сработал)
+					interception_send(context, device, (InterceptionStroke*)&esc_down, 1);
+					Sleep(300);
+					interception_send(context, device, (InterceptionStroke*)&esc_up, 1);
+					Sleep(3000);
 				}
 			}
 			
