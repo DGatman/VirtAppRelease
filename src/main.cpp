@@ -2958,6 +2958,23 @@ int main() {
 			}
 		});
 	hotkeys.detach();
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// SESSION GUARD (Backup Epic Games tokens every 5 mins)
+	// ═══════════════════════════════════════════════════════════════════════════
+	thread sessionGuard([&currentTm]() {
+		logprint("Session Guard: STARTED (Interval: 5 min)", currentTm);
+		while (true) {
+			// Sleep 5 minutes (300,000 ms)
+			Sleep(300000);
+
+			logprint("Session Guard: Creating backup...", currentTm);
+			// Run backup script
+			system("python scripts/epic_auth.py --backup-only");
+		}
+		});
+	sessionGuard.detach();
+
 	HWND Console = GetConsoleWindow();
 	PostMessage(Console, WM_SYSCOMMAND, SC_MINIMIZE, 0);
 	if (checkBanInTable(PCName))
