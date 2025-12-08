@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.5.1] - 2025-12-08
+
+### Changed
+- Dashboard version string bumped to `v3.5.1` in `main.cpp`.
+- Presents menu safe-exit now uses `F10` instead of `ESC` to avoid opening the pause menu.
+
+### Fixed
+- Removed `forceRelogin` triggers in presents/ruletka flow; bot now логирует и пропускает цикл без ребута.
+
 ## [Unreleased] - 2023-10-27
 
 ### Added

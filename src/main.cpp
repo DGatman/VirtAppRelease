@@ -1387,7 +1387,7 @@ int main() {
 		printf("[2/5] Dashboard init...\n"); fflush(stdout);
 		initDashboard();
 		
-		string version = "v3.2";  // Dashboard UI. Enterprise-level console interface.
+		string version = "v3.5.1";  // Dashboard UI. Enterprise-level console interface.
 		string status = "Baldeet";
 		
 		printf("[3/5] CURL init...\n"); fflush(stdout);
@@ -4232,20 +4232,15 @@ int main() {
 
 					// 3. SAFE EXIT (Гарантированный выход)
 					// Вместо клика по крестику (1158, 100), который может не сработать если окно другое,
-					// используем ESC, но аккуратно (1 раз), чтобы закрыть оверлей F10.
-					// Если мы в меню F10 - ESC закроет его.
-					// Если мы случайно открыли меню паузы (ESC) - следующий ESC закроет и его.
+					// используем F10, так как мы открывали меню через F10.
+					// ESC опасен тем, что открывает карту (меню паузы).
 					logprint("Exiting present menu (Safe Exit)...", currentTm);
 					
-					// Сначала пробуем штатный крестик
-					mouse_leftClick(context, mouseDevice, 1158, 100);
-					Sleep(2000);
-					
-					// Страховка через ESC (закроет F10 если крестик не сработал)
-					interception_send(context, device, (InterceptionStroke*)&esc_down, 1);
+					// Закрываем через F10
+					interception_send(context, device, (InterceptionStroke*)&f10_down, 1);
 					Sleep(300);
-					interception_send(context, device, (InterceptionStroke*)&esc_up, 1);
-					Sleep(3000);
+					interception_send(context, device, (InterceptionStroke*)&f10_up, 1);
+					Sleep(2000);
 				}
 			}
 			
@@ -4278,7 +4273,7 @@ int main() {
 			}
 			if (waitingphone >= 10)
 			{
-				forceRelogin = true;
+				logprint("Phone not opened after 10 attempts, skipping ruletka this cycle", currentTm);
 				continue;
 			}
 
@@ -4303,7 +4298,7 @@ int main() {
 			}
 			if (waitingphone >= 10)
 			{
-				forceRelogin = true;
+				logprint("Ruletka page not opened after 10 attempts, skipping ruletka this cycle", currentTm);
 				continue;
 			}
 

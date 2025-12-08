@@ -5,9 +5,11 @@
 - [x] Time Synchronization Optimization
 - [x] Mouse Input Passthrough (Interception Driver Fix)
 - [x] C++ Project Compilation (Release Build)
+- [x] Убран авт ребут в блоке presents/рулетка (лог + пропуск цикла)
+- [x] Safe exit меню подарков переведен на F10 вместо ESC
 
 ## 🚧 In Progress
-- [ ] Testing new `VirtApp.exe` binary
+- [ ] Проверка на стенде: отсутствие ребута при сбоях открытия телефона/рулетки
 - [ ] Verifying input behavior in-game
 
 ## 📅 Planned
