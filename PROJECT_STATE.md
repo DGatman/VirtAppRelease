@@ -1,34 +1,32 @@
-# Project State: GTA5rpVirt
+# Project State: GTA5rpVirt (Release Distribution)
 
 ## ℹ️ About
-Automation bot for GTA 5 RP servers using computer vision (OCR) and input simulation.
-Handles authentication (Epic Games), queue management, and basic in-game actions.
+Production release repository for GTA 5 RP Automation Bot.
+Contains compiled binaries, configuration files, and helper scripts.
+**Source code is maintained in a separate development repository.**
 
-## 🛠 Tech Stack
-- **Core:** C++17 (Visual Studio 2022)
-- **Build System:** CMake
-- **Input:** Interception Driver (Kernel level mouse/keyboard)
-- **Vision:** Tesseract OCR (v5), OpenCV (implied)
-- **Network:** cURL, mailio (Email handling)
+## 🛠 Tech Stack (Runtime)
+- **Core:** C++17 (Compiled Binary)
+- **Input:** Interception Driver
+- **Vision:** Tesseract OCR (v5)
 - **Scripting:** Python 3 (Time sync, Auth logic)
-- **Libraries:** Boost, OpenSSL, SQLite
 
-## 📦 Modules
-- **VirtApp.exe:** Main bot executable (C++)
-- **ScreenScaner:** Screen capture and OCR processing
-- **scripts/set_local_time.py:** NTP/HTTP time synchronization
-- **scripts/epic_auth.py:** Epic Games authentication automation
-- **scripts/main.py:** Python entry point (legacy/wrapper)
+## 📦 Components
+- **VirtApp.exe:** Main bot executable
+- **scripts/**: Python helper scripts for time sync and auth
+- **config/**: Configuration templates
+- **data/**: OCR training data (tessdata)
+- **DLLs:** Required runtime libraries (Boost, OpenSSL, Tesseract, etc.)
 
 ## 🔄 Current Status
-- **Version:** 7.2 (Estimated)
-- **Last Update:** 2023-10-27
-- **State:** Active Development
-- **Recent Focus:** Input handling optimization, Startup speed
+- **Version:** 3.5.1 (Release)
+- **Last Update:** 2025-12-08
+- **State:** Production Stable
+- **Recent Focus:** Bug fixes, Repository cleanup
 
 ## 📂 Directory Structure
-- `src/`: C++ source code
-- `scripts/`: Python helper scripts
-- `Bot/`: Visual Studio solution files (Legacy/Generated)
-- `VirtAppCMake/`: CMake configuration (Alternative)
-- `build_final/`: Current build directory
+- `VirtApp.exe`: Main executable
+- `scripts/`: Python scripts
+- `config/`: Configuration files
+- `data/`: OCR data
+- `*.dll`: Runtime dependencies

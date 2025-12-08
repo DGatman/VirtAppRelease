@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.5.1] - 2025-12-08
+
+### Fixed
+- **Battle Pass Logic:** Removed redundant `ESC` keypress after closing Battle Pass menu.
+  - Prevents the bot from accidentally opening the Pause Menu (Map) which caused logic desync.
+  - Updated `VirtApp.exe` with the fix.
+
+### Changed
+- **Repository Structure:** Cleaned up repository for production release.
+  - Removed source code (`src/`), build artifacts (`build_*/`), and development files.
+  - Repository now contains only binaries, scripts, and configuration.
+
 ## [Unreleased] - 2023-10-27
 
 ### Added
