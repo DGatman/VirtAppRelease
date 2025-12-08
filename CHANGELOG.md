@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [3.5.1] - 2025-12-08
 
 ### Fixed
+- **Battle Pass Logic:** Changed "Safe Exit" mechanism.
+  - Replaced "Cross Click" (which could miss) and "ESC" (which opened Map) with **F10 toggle**.
+  - Now uses F10 to close the menu, ensuring it closes reliably without side effects.
 - **Battle Pass Logic:** Removed redundant `ESC` keypress after closing Battle Pass menu.
   - Prevents the bot from accidentally opening the Pause Menu (Map) which caused logic desync.
   - Updated `VirtApp.exe` with the fix.
