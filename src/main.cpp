@@ -1373,7 +1373,7 @@ int main() {
 	}
 	
 	printf("=== VirtApp STARTING ===\n");
-	printf("Version: v3.2 (Build: %s %s)\n", __DATE__, __TIME__);
+	printf("Version: v3.5.2 (Build: %s %s)\n", __DATE__, __TIME__);
 	printf("Initializing...\n");
 	fflush(stdout);
 	
@@ -1387,7 +1387,7 @@ int main() {
 		printf("[2/5] Dashboard init...\n"); fflush(stdout);
 		initDashboard();
 		
-		string version = "v3.5.1";  // Dashboard UI. Enterprise-level console interface.
+		string version = "v3.5.2";  // Dashboard UI. Enterprise-level console interface.
 		string status = "Baldeet";
 		
 		printf("[3/5] CURL init...\n"); fflush(stdout);
@@ -1552,7 +1552,7 @@ int main() {
 	string socpass;
 	string login;
 	bool ha = true;
-	bool present_activity = true;
+	bool present_activity = false; // по умолчанию подарки/BP отключены
 	bool direction = true;
 	bool afk = false;
 	bool ruletka = true;
@@ -4176,72 +4176,10 @@ int main() {
 
 			Sleep(5000);
 
-			//PRESENT TAKING
+			//PRESENT TAKING отключено: фиксируем в логах и пропускаем действия
 			if (present_activity)
 			{
-				logprint("Checking present", currentTm);
-				if (true) //!scan.checkPixel(1028, 100, 253, 117, 7)
-				{
-					interception_send(context, device, (InterceptionStroke*)&f10_down, 1);
-					Sleep(300);
-					interception_send(context, device, (InterceptionStroke*)&f10_up, 1);
-					Sleep(10000);
-					mouse_leftClick(context, mouseDevice, 458, 94);
-					Sleep(10000);
-					
-					// 1. Попытка забрать (если уже куплен и выполнен)
-					if (scan.checkPixel(720, 500, 193, 26, 33))
-					{
-						mouse_leftClick(context, mouseDevice, 720, 500);
-						Sleep(10000);
-						mouse_leftClick(context, mouseDevice, 720, 500);
-						Sleep(3000);
-						scan.makeScreenshot();
-						for (string id : tgListLoging)
-						{
-							int wait = 0;
-							while (wait < 5)
-							{
-								try
-								{
-									bot.getApi().sendPhoto(id, InputFile::fromFile(photoFilePath, photoMimeType), "Present was taken", 0, nullptr, "", true);
-									break;
-								}
-								catch (const std::exception& e)
-								{
-									logprint("\nNO CONNECTION WITH TELEGRAM.SCREENSHOT WASN'T SENDED\nError: " + (string)e.what(), currentTm);
-								}
-								wait++;
-								Sleep(1000);
-							}
-						}
-					}
-					else 
-					{
-						// 2. BLIND CLICK (Попытка купить БП)
-						// Если кнопки "Забрать" нет - возможно БП не куплен.
-						// Пробуем кликнуть в центр (400, 338) где обычно кнопка покупки.
-						// Если денег нет - ничего не произойдет. Если куплен - тоже.
-						logprint("Present button not found. Trying BLIND BUY (400, 338)...", currentTm);
-						mouse_leftClick(context, mouseDevice, 400, 338); 
-						Sleep(2000);
-						// Подтверждение покупки (на всякий случай, если есть диалог)
-						mouse_leftClick(context, mouseDevice, 400, 338);
-						Sleep(2000);
-					}
-
-					// 3. SAFE EXIT (Гарантированный выход)
-					// Вместо клика по крестику (1158, 100), который может не сработать если окно другое,
-					// используем F10, так как мы открывали меню через F10.
-					// ESC опасен тем, что открывает карту (меню паузы).
-					logprint("Exiting present menu (Safe Exit)...", currentTm);
-					
-					// Закрываем через F10
-					interception_send(context, device, (InterceptionStroke*)&f10_down, 1);
-					Sleep(300);
-					interception_send(context, device, (InterceptionStroke*)&f10_up, 1);
-					Sleep(2000);
-				}
+				logprint("Present/BP collection disabled (ruletka-only mode)", currentTm);
 			}
 			
 

@@ -21,10 +21,10 @@ Handles authentication (Epic Games), queue management, and basic in-game actions
 - **scripts/main.py:** Python entry point (legacy/wrapper)
 
 ## 🔄 Current Status
-- **Version:** 3.5.1
-- **Last Update:** 2025-12-08
+- **Version:** 3.5.2
+- **Last Update:** 2025-12-09
 - **State:** Active Development
-- **Recent Focus:** Безопасный выход из меню подарков через F10; отключены автоперезагрузки в presents/рулетка; обновлен релизный `VirtApp.exe`
+- **Recent Focus:** Подарки/BP отключены по умолчанию (рулетка-only); баннер версии синхронизирован 3.5.2; безопасный выход через F10 без ребутов
 
 ## 📂 Directory Structure
 - `src/`: C++ source code
