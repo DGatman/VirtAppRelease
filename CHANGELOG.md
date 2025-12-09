@@ -2,20 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
-## [3.5.1] - 2025-12-08
-
-### Fixed
-- **Battle Pass Logic:** Changed "Safe Exit" mechanism.
-  - Replaced "Cross Click" (which could miss) and "ESC" (which opened Map) with **F10 toggle**.
-  - Now uses F10 to close the menu, ensuring it closes reliably without side effects.
-- **Battle Pass Logic:** Removed redundant `ESC` keypress after closing Battle Pass menu.
-  - Prevents the bot from accidentally opening the Pause Menu (Map) which caused logic desync.
-  - Updated `VirtApp.exe` with the fix.
+## [3.5.2] - 2025-12-09
 
 ### Changed
-- **Repository Structure:** Cleaned up repository for production release.
-  - Removed source code (`src/`), build artifacts (`build_*/`), and development files.
-  - Repository now contains only binaries, scripts, and configuration.
+- Отключен сбор подарков/батл пасса: оставлена только рулетка в основном цикле (`main.cpp`).
+- Обновлена строка версии Dashboard до `v3.5.2`.
+- Стартовый баннер синхронизирован с версией `v3.5.2`; presents по умолчанию выключены (статус показывает DISABLED).
+
+## [3.5.1] - 2025-12-08
+
+### Changed
+- Dashboard version string bumped to `v3.5.1` in `main.cpp`.
+- Presents menu safe-exit now uses `F10` instead of `ESC` to avoid opening the pause menu.
+
+### Fixed
+- Removed `forceRelogin` triggers in presents/ruletka flow; bot now логирует и пропускает цикл без ребута.
 
 ## [Unreleased] - 2023-10-27
 
