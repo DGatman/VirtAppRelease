@@ -3752,7 +3752,24 @@ int main() {
 		{
 			waiting++;
 			Sleep(1000);
-			logprint("Waiting for button", currentTm);
+			// Логируем каждые 30 секунд
+			if (waiting % 30 == 0)
+			{
+				logprint("Waiting for button... (" + to_string(waiting) + "s)", currentTm);
+			}
+			// После 120 секунд пробуем нажать ESC для recovery
+			if (waiting == 120)
+			{
+				logprint("Button not found for 2 min, pressing ESC for recovery", currentTm);
+				interception_send(context, device, (InterceptionStroke*)&esc_down, 1);
+				Sleep(175);
+				interception_send(context, device, (InterceptionStroke*)&esc_up, 1);
+				Sleep(3000);
+			}
+		}
+		if (waiting >= 180)
+		{
+			logprint("Button wait timeout (3 min), continuing anyway", currentTm);
 		}
 		Sleep(1000);
 		mouse_leftClick(context, mouseDevice, 646, 450);
@@ -4294,8 +4311,14 @@ int main() {
 			{
 				Sleep(100);
 				spinwait++;
+				// Логируем каждые 60 секунд (600 итераций по 100мс)
+				if (spinwait % 600 == 0)
+				{
+					logprint("Still waiting for spin result... (" + to_string(spinwait / 10) + "s)", currentTm);
+				}
 				if (spinwait >= 6000)
 				{
+					logprint("Spin result timeout (10 min), forcing continue", currentTm);
 					break;
 				}
 			}
@@ -4310,20 +4333,29 @@ int main() {
 				logprint("TessOCR init", currentTm);
 				try
 				{
-					// Initialize tesseract-ocr with English, without specifying tessdata path
+					// Initialize tesseract-ocr with English
+					// ВАЖНО: Init() возвращает 0 при УСПЕХЕ, != 0 при ошибке
 					int wait = 0;
+					bool tessInitOk = false;
 					while (wait < 40)
 					{
-						if (api->Init(NULL, "eng"))
+						if (api->Init(NULL, "eng") == 0)  // 0 = успех
 						{
+							logprint("Tesseract initialized successfully", currentTm);
+							tessInitOk = true;
 							break;
 						}
 						else
 						{
 							Sleep(1000);
 							wait++;
-							logprint("Failed to init tesseract", currentTm);
+							logprint("Failed to init tesseract, attempt " + to_string(wait), currentTm);
 						}
+					}
+					if (!tessInitOk)
+					{
+						logprint("Tesseract init FAILED after 40 attempts, skipping OCR", currentTm);
+						throw std::runtime_error("Tesseract init failed");
 					}
 					// Open input image with leptonica library
 					Pix* image = pixRead("Screenshot.png");
