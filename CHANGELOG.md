@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Исправлена сборка на Windows: добавлен явный include `<io.h>` для вызова `_access`.
+- Убран `forceRelogin = true` в блоках оплаты (phone/flat payment): при неоткрытии телефона бот теперь логирует ошибку и пропускает цикл вместо ребута ПК.
 
 ## [3.5.2] - 2025-12-09
 

@@ -3785,7 +3785,7 @@ int main() {
 				waitingphone++;
 				if (waitingphone >= 20)
 				{
-					forceRelogin = true;
+					logprint("Phone not opened after 20 attempts (phone payment), skipping", currentTm);
 					break;
 				}
 			}
@@ -3867,7 +3867,7 @@ int main() {
 				waitingphone++;
 				if (waitingphone >= 20)
 				{
-					forceRelogin = true;
+					logprint("Phone not opened after 20 attempts (flat payment), skipping", currentTm);
 					break;
 				}
 			}
