@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Nifilim-Server#1\Documents\GTA5rpVirt\build_final\CMakeFiles\d8684ac836baa40c296d392e48addd20\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{55C30107-23CC-3272-9E89-7AE340B9F8DF}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
