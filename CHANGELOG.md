@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.5.3] - 2025-12-10
+
+### Changed
+- Версия теперь задается одной переменной сборки (`VIRTAPP_VERSION`) и выводится в формате `3.5.3` без префикса `v`.
+- Сборка генерирует основной артефакт `VirtApp-3.5.3.exe` и автоматически клонирует его в совместимый `VirtApp.exe` для скриптов.
+- Стартовый баннер/лог `Current version` читают ту же версию из сборки, чтобы не расходиться с именем бинаря.
+
+### Fixed
+- Исправлена сборка на Windows: добавлен явный include `<io.h>` для вызова `_access`.
+
+## [3.5.2] - 2025-12-09
+
+### Changed
+- Отключен сбор подарков/батл пасса: оставлена только рулетка в основном цикле (`main.cpp`).
+- Обновлена строка версии Dashboard до `v3.5.2`.
+- Стартовый баннер синхронизирован с версией `v3.5.2`; presents по умолчанию выключены (статус показывает DISABLED).
+- Добавлена безопасная инициализация токена (пустой TOKEN не блокирует старт) и лог при отсутствии; автоустановка python/main.py/command_cmd.bat выполняется только при наличии файлов, чтобы избежать зависаний на старте.
+
+## [3.5.1] - 2025-12-08
+
+### Changed
+- Dashboard version string bumped to `v3.5.1` in `main.cpp`.
+- Presents menu safe-exit now uses `F10` instead of `ESC` to avoid opening the pause menu.
+
+### Fixed
+- Removed `forceRelogin` triggers in presents/ruletka flow; bot now логирует и пропускает цикл без ребута.
+
 ## [Unreleased] - 2023-10-27
 
 ### Added

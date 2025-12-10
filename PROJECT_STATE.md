@@ -21,10 +21,11 @@ Handles authentication (Epic Games), queue management, and basic in-game actions
 - **scripts/main.py:** Python entry point (legacy/wrapper)
 
 ## 🔄 Current Status
-- **Version:** 7.2 (Estimated)
-- **Last Update:** 2023-10-27
+- **Version:** 3.5.3
+- **Last Update:** 2025-12-10
 - **State:** Active Development
-- **Recent Focus:** Input handling optimization, Startup speed
+- **Recent Focus:** Версия выводится в формате 0.0.0 и прокинутa из сборки; основной артефакт теперь `VirtApp-<версия>.exe` с совместимым `VirtApp.exe`; рулетка-only по умолчанию, безопасный выход через F10, защита старта от пустого TOKEN/скриптов сохранена
+- **Build Note:** Windows сборка починена: явный include `<io.h>` для вызова `_access`.
 
 ## 📂 Directory Structure
 - `src/`: C++ source code

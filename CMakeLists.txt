@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.10.2)
-project(VirtApp)
+set(VIRTAPP_VERSION "3.5.3")
+project(VirtApp VERSION ${VIRTAPP_VERSION})
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -44,6 +45,9 @@ add_executable(VirtApp
     src/utils.h
 )
 
+add_compile_definitions(VIRTAPP_VERSION="${VIRTAPP_VERSION}")
+set_target_properties(VirtApp PROPERTIES OUTPUT_NAME "VirtApp-${VIRTAPP_VERSION}")
+
 target_link_libraries(VirtApp 
     ${INTERCEPTION_LIB}
     TgBot::TgBot
@@ -75,4 +79,11 @@ add_custom_command(TARGET VirtApp POST_BUILD
         ${CMAKE_SOURCE_DIR}/config
         $<TARGET_FILE_DIR:VirtApp>/config
     COMMENT "Copying config to build directory"
+)
+
+add_custom_command(TARGET VirtApp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:VirtApp>
+        $<TARGET_FILE_DIR:VirtApp>/VirtApp.exe
+    COMMENT "Keeping legacy VirtApp.exe for compatibility"
 )
