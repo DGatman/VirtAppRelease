@@ -1941,8 +1941,14 @@ int main() {
 				bot.getApi().sendMessage(message->chat->id, "Empty login in config");
 				return;
 			}
-			string command = ("main.py " + login + " Naguibs1337228");
+			string command = ("python main.py " + login + " Naguibs1337228");
 			string py_ = exec(command.c_str());
+			if (py_.empty() || py_.find("not recognized") != string::npos)
+			{
+				// Fallback to 'py' if 'python' not found
+				command = ("py main.py " + login + " Naguibs1337228");
+				py_ = exec(command.c_str());
+			}
 			if (py_.empty())
 			{
 				bot.getApi().sendMessage(message->chat->id, "No result. Entered command:\n" + command);
@@ -1971,8 +1977,14 @@ int main() {
 				bot.getApi().sendMessage(message->chat->id, "Empty login in config");
 				return;
 			}
-			string command = ("main.py " + login + " Naguibs1337228 " + PCName);
+			string command = ("python main.py " + login + " Naguibs1337228 " + PCName);
 			string py_ = exec(command.c_str());
+			if (py_.empty() || py_.find("not recognized") != string::npos)
+			{
+				// Fallback to 'py'
+				command = ("py main.py " + login + " Naguibs1337228 " + PCName);
+				py_ = exec(command.c_str());
+			}
 			if (py_.empty())
 			{
 				bot.getApi().sendMessage(message->chat->id, "No result. Entered command:\n" + command);
