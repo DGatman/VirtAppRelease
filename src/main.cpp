@@ -643,13 +643,21 @@ std::string exec(const char* cmd) {
 
 string sendToDB(string PCName, string column, string value, string mode = "plus")
 {
-	string cmd = "main.py " + PCName + " " + value + " " + column + " " + mode;
+	// Используем python явно для гарантии выполнения
+	string cmd = "python main.py " + PCName + " " + value + " " + column + " " + mode;
+	
+	// Логируем команду для отладки
+	cout << "[sendToDB] Command: " << cmd << endl;
+	
 	if (std::filesystem::exists("credentials.json"))
 	{
-		return exec(cmd.c_str());
+		string result = exec(cmd.c_str());
+		cout << "[sendToDB] Result: " << result << endl;
+		return result;
 	}
 	else
 	{
+		cout << "[sendToDB] ERROR: credentials.json not found!" << endl;
 		return "";
 	}
 }
@@ -4366,6 +4374,7 @@ int main() {
 					// Get OCR result
 					outText = api->GetUTF8Text();
 					string OCRResult = outText;
+					logprint("OCR Raw result: " + OCRResult, currentTm);
 
 					//Regex
 					regex cash(R"(\b(\d{5})(5|9|8|S|\$)(!|1|I|i|l|S|\$|9))");
@@ -4375,6 +4384,7 @@ int main() {
 
 					if (regex_search(outText, match, cash)) {
 						string digits = match[1]; // Извлекаем цифры
+						logprint("Matched CASH: " + digits + ", sending to DB column 7", currentTm);
 						string dblog = sendToDB(PCName, "7", digits);
 						if (dblog.empty())
 						{
@@ -4385,6 +4395,7 @@ int main() {
 					// Проверяем соответствие выражению dp
 					else if (regex_search(outText, match, dp)) {
 						string digits = match[1]; // Извлекаем цифры
+						logprint("Matched DP: " + digits + ", sending to DB column 10", currentTm);
 						string dblog = sendToDB(PCName, "10", digits);
 						if (dblog.empty())
 						{
@@ -4399,6 +4410,7 @@ int main() {
 						{
 							digits = "1" + digits;
 						}
+						logprint("Matched TIPS: " + digits + ", sending to DB column 8", currentTm);
 						string dblog = sendToDB(PCName, "8", digits);
 						if (dblog.empty())
 						{
@@ -4407,6 +4419,7 @@ int main() {
 						outText = (string)"Tips dropped\n+ " + digits + (string)" tips\n" + dblog + "\nOCR result :\n" + OCRResult;
 					}
 					else {
+						logprint("NO MATCH found in OCR result, not sending to DB", currentTm);
 						outText = (string)"IDK what is dropped\n OutText: " + outText;
 					}
 
