@@ -119,7 +119,10 @@ def send_to_google_sheet(row_name, value, col, mode):
 
     # Проходим по всем совпадениям
     for row_index, name in enumerate(column_a, start=1):
-        if name == row_name and status_column[row_index - 1] != "Не основа":
+        # Защита от IndexError: проверяем что status_column достаточно длинный
+        status = status_column[row_index - 1] if row_index <= len(status_column) else ""
+        
+        if name == row_name and status != "Не основа":
             current_time = datetime.now().strftime("%d.%m.%Y %H:%M")
 
             if mode == "replace":
@@ -150,9 +153,17 @@ def get_profiles(login, password):
     headers = {
         'content-type': "application/json"
     }
-    response = requests.request("POST", url, data=payload, headers=headers)
-    account = json.loads(response.text)
-    token = account["token"]
+    try:
+        response = requests.request("POST", url, data=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+        account = json.loads(response.text)
+        if "token" not in account:
+            print("Error: 'token' key missing in API response")
+            return []
+        token = account["token"]
+    except (requests.exceptions.RequestException, json.JSONDecodeError, KeyError) as e:
+        print(f"Error in get_profiles API: {e}")
+        return []
 
     profiles: List[Profile] = []
     # Getting profiles
@@ -173,9 +184,17 @@ def get_user(login, password):
     headers = {
         'content-type': "application/json"
     }
-    response = requests.request("POST", url, data=payload, headers=headers)
-    account = json.loads(response.text)
-    token = account["token"]
+    try:
+        response = requests.request("POST", url, data=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+        account = json.loads(response.text)
+        if "token" not in account:
+            print("Error: 'token' key missing in API response")
+            return None
+        token = account["token"]
+    except (requests.exceptions.RequestException, json.JSONDecodeError, KeyError) as e:
+        print(f"Error in get_user API: {e}")
+        return None
     url = "https://gta5rp.com/api/V2/users/"
     headers = {
         'x-access-token': token
@@ -236,6 +255,9 @@ if __name__ == "__main__":
         flat = sheet.col_values(11)  # House
         for profile in profiles:
             for row_index, server_name in enumerate(server, start=1):
+                # IndexError protection
+                if row_index > len(profile_name) or row_index > len(vipType) or row_index > len(vipDuration):
+                    continue
                 if server_name == profile.server and profile_name[row_index - 1].replace(" ","_") == profile.name:
                     print(f"Found in table, row #{row_index}", flush=True)
                     if vipType[row_index - 1] != "Не основа":
