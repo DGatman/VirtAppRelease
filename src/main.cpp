@@ -643,23 +643,32 @@ std::string exec(const char* cmd) {
 
 string sendToDB(string PCName, string column, string value, string mode = "plus")
 {
-	// Используем python явно для гарантии выполнения
-	string cmd = "python main.py " + PCName + " " + value + " " + column + " " + mode;
-	
-	// Логируем команду для отладки
-	cout << "[sendToDB] Command: " << cmd << endl;
-	
-	if (std::filesystem::exists("credentials.json"))
-	{
-		string result = exec(cmd.c_str());
-		cout << "[sendToDB] Result: " << result << endl;
-		return result;
-	}
-	else
+	if (!std::filesystem::exists("credentials.json"))
 	{
 		cout << "[sendToDB] ERROR: credentials.json not found!" << endl;
 		return "";
 	}
+	
+	// Пробуем разные варианты запуска Python (fallback)
+	string args = "main.py " + PCName + " " + value + " " + column + " " + mode;
+	string cmd;
+	string result;
+	
+	// Попытка 1: python
+	cmd = "python " + args + " 2>&1";
+	cout << "[sendToDB] Trying: " << cmd << endl;
+	result = exec(cmd.c_str());
+	
+	// Если результат пустой или содержит ошибку - пробуем py
+	if (result.empty() || result.find("not recognized") != string::npos || result.find("not found") != string::npos)
+	{
+		cmd = "py " + args + " 2>&1";
+		cout << "[sendToDB] Python failed, trying: " << cmd << endl;
+		result = exec(cmd.c_str());
+	}
+	
+	cout << "[sendToDB] Result: " << result << endl;
+	return result;
 }
 
 void removeTrailingNewline(std::string& str) {
@@ -4374,8 +4383,22 @@ int main() {
 						logprint("Tesseract init FAILED after 10 attempts, skipping OCR", currentTm);
 						throw std::runtime_error("Tesseract init failed");
 					}
+					
+					// Проверяем что Screenshot.png создался
+					if (!std::filesystem::exists("Screenshot.png"))
+					{
+						logprint("ERROR: Screenshot.png not found, skipping OCR", currentTm);
+						throw std::runtime_error("Screenshot not found");
+					}
+					
 					// Open input image with leptonica library
 					Pix* image = pixRead("Screenshot.png");
+					if (image == NULL)
+					{
+						logprint("ERROR: Failed to load Screenshot.png (corrupted?)", currentTm);
+						throw std::runtime_error("Screenshot load failed");
+					}
+					
 					api->SetImage(image);
 					// Restrict recognition to a sub-rectangle of the image
 					// SetRectangle(left, top, width, height)
@@ -4384,6 +4407,9 @@ int main() {
 					outText = api->GetUTF8Text();
 					string OCRResult = outText;
 					logprint("OCR Raw result: " + OCRResult, currentTm);
+					
+					// Освобождаем память
+					pixDestroy(&image);
 
 					//Regex
 					regex cash(R"(\b(\d{5})(5|9|8|S|\$)(!|1|I|i|l|S|\$|9))");

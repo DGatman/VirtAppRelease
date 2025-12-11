@@ -119,7 +119,10 @@ def send_to_google_sheet(row_name, value, col, mode):
 
     # Проходим по всем совпадениям
     for row_index, name in enumerate(column_a, start=1):
-        if name == row_name and status_column[row_index - 1] != "Не основа":
+        # Защита от IndexError: проверяем что status_column достаточно длинный
+        status = status_column[row_index - 1] if row_index <= len(status_column) else ""
+        
+        if name == row_name and status != "Не основа":
             current_time = datetime.now().strftime("%d.%m.%Y %H:%M")
 
             if mode == "replace":
