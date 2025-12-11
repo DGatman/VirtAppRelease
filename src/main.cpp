@@ -2844,7 +2844,8 @@ int main() {
 	logprint("Downloading libs", currentTm);
 	if (fileExists("main.py"))
 	{
-		system("main.py");
+		// Используем python явно для гарантии выполнения
+		system("python main.py 2>&1");
 	}
 	else
 	{
@@ -4343,26 +4344,34 @@ int main() {
 				{
 					// Initialize tesseract-ocr with English
 					// ВАЖНО: Init() возвращает 0 при УСПЕХЕ, != 0 при ошибке
+					// Указываем "." как путь к tessdata (текущая директория содержит eng.traineddata)
 					int wait = 0;
 					bool tessInitOk = false;
-					while (wait < 40)
+					while (wait < 10)  // Уменьшаем до 10 попыток (было 40)
 					{
-						if (api->Init(NULL, "eng") == 0)  // 0 = успех
+						// Пробуем сначала текущую директорию, потом data/tessdata
+						if (api->Init(".", "eng") == 0)  // 0 = успех
 						{
-							logprint("Tesseract initialized successfully", currentTm);
+							logprint("Tesseract initialized successfully (path: .)", currentTm);
+							tessInitOk = true;
+							break;
+						}
+						else if (api->Init("data/tessdata", "eng") == 0)
+						{
+							logprint("Tesseract initialized successfully (path: data/tessdata)", currentTm);
 							tessInitOk = true;
 							break;
 						}
 						else
 						{
-							Sleep(1000);
+							Sleep(500);
 							wait++;
 							logprint("Failed to init tesseract, attempt " + to_string(wait), currentTm);
 						}
 					}
 					if (!tessInitOk)
 					{
-						logprint("Tesseract init FAILED after 40 attempts, skipping OCR", currentTm);
+						logprint("Tesseract init FAILED after 10 attempts, skipping OCR", currentTm);
 						throw std::runtime_error("Tesseract init failed");
 					}
 					// Open input image with leptonica library
