@@ -15,6 +15,12 @@ import sys
 import subprocess
 from pathlib import Path
 
+# Ensure stdout/stderr always allow Unicode output on legacy consoles
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 try:
     import requests
     import urllib3
