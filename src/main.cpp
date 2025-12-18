@@ -37,6 +37,8 @@
 #include <algorithm>
 #include <codecvt>
 #include <io.h>
+#include <atomic>
+#include <cctype>
 
 #ifndef VIRTAPP_VERSION
 #define VIRTAPP_VERSION "0.0.0"
@@ -637,6 +639,100 @@ std::string exec(const char* cmd) {
 		result += buffer.data();
 	}
 	return result;
+}
+
+static bool outputIndicatesMissingPython(const std::string& output) {
+	if (output.empty()) return true;
+	const std::string lower = [&]() {
+		std::string tmp = output;
+		std::transform(tmp.begin(), tmp.end(), tmp.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+		return tmp;
+	}();
+	return lower.find("not recognized") != std::string::npos ||
+		lower.find("no such file") != std::string::npos ||
+		lower.find("not found") != std::string::npos ||
+		lower.find("can't open file") != std::string::npos;
+}
+
+static std::string execPythonWithFallback(const std::string& scriptAndArgs, tm* currentTm, const std::string& tag) {
+	std::string cmd = "python " + scriptAndArgs + " 2>&1";
+	std::string result;
+	try {
+		result = exec(cmd.c_str());
+	}
+	catch (const std::exception& e) {
+		if (currentTm) logprint("[python:" + tag + "] python failed to start: " + std::string(e.what()), currentTm);
+		result.clear();
+	}
+
+	if (outputIndicatesMissingPython(result)) {
+		cmd = "py " + scriptAndArgs + " 2>&1";
+		try {
+			result = exec(cmd.c_str());
+		}
+		catch (const std::exception& e) {
+			if (currentTm) logprint("[python:" + tag + "] py failed to start: " + std::string(e.what()), currentTm);
+			result.clear();
+		}
+	}
+
+	return result;
+}
+
+static void gracefulCloseThenForceKill(const std::string& imageName, LPCWSTR processName, int gracefulWaitMs, tm* currentTm) {
+	if (!isRunningP(processName)) return;
+
+	if (currentTm) logprint("[SOFT REBOOT] Closing " + imageName + " (graceful)", currentTm);
+	std::string cmd = "taskkill /IM " + imageName + " >nul 2>&1";
+	system(cmd.c_str());
+
+	int waitedMs = 0;
+	while (waitedMs < gracefulWaitMs && isRunningP(processName)) {
+		Sleep(1000);
+		waitedMs += 1000;
+	}
+
+	if (isRunningP(processName)) {
+		if (currentTm) logprint("[SOFT REBOOT] Forcing close " + imageName, currentTm);
+		cmd = "taskkill /F /IM " + imageName + " >nul 2>&1";
+		system(cmd.c_str());
+		Sleep(2000);
+	}
+}
+
+static std::atomic<bool> g_softRebootRequested{ false };
+
+static void softReboot(tm* currentTm, const std::string& reason) {
+	if (g_softRebootRequested.exchange(true)) {
+		if (currentTm) logprint("[SOFT REBOOT] Already scheduled. Reason: " + reason, currentTm);
+		return;
+	}
+
+	if (currentTm) logprint("[SOFT REBOOT] Requested. Reason: " + reason, currentTm);
+
+	// Cancel any previously scheduled shutdown (best-effort)
+	try {
+		exec("shutdown /a 2>&1");
+	}
+	catch (const std::exception&) {
+	}
+
+	// Close Epic gracefully first (helps unlock webcache files)
+	gracefulCloseThenForceKill("EpicGamesLauncher.exe", L"EpicGamesLauncher.exe", 30000, currentTm);
+	gracefulCloseThenForceKill("EpicWebHelper.exe", L"EpicWebHelper.exe", 15000, currentTm);
+
+	// Confirmed Epic session backup (python -> py fallback)
+	std::string backupOut = execPythonWithFallback("scripts/epic_auth.py --backup", currentTm, "epic_backup");
+	if (backupOut.find("BACKUP_OK") != std::string::npos) {
+		if (currentTm) logprint("[SOFT REBOOT] Epic backup OK", currentTm);
+	}
+	else {
+		if (currentTm) logprint("[SOFT REBOOT] Epic backup NOT confirmed (continuing reboot)", currentTm);
+	}
+
+	// Give weak PCs enough time; avoid extremely short reboot timers
+	if (currentTm) logprint("[SOFT REBOOT] Scheduling reboot in 60 seconds", currentTm);
+	system("shutdown /r /t 60 /c \"VirtApp soft reboot\"");
 }
 
 //IP CHECK
@@ -1371,7 +1467,10 @@ BOOL WINAPI ConsoleHandler(DWORD dwType)
 	if (dwType == CTRL_CLOSE_EVENT || dwType == CTRL_C_EVENT)
 	{
 		printf("\n[VirtApp] Exiting... Performing emergency backup...\n");
-		system("python scripts/epic_auth.py --backup-only");
+		int code = system("python scripts/epic_auth.py --backup-only >nul 2>&1");
+		if (code != 0) {
+			system("py scripts/epic_auth.py --backup-only >nul 2>&1");
+		}
 		Sleep(2000);
 	}
 	return FALSE;
@@ -1397,6 +1496,12 @@ int main() {
 	printf("Version: %s (Build: %s %s)\n", VIRTAPP_VERSION, __DATE__, __TIME__);
 	printf("Initializing...\n");
 	fflush(stdout);
+	
+	// ═══════════════════════════════════════════════════════════════════════════
+	// API CONFIG UPDATE - Получаем свежие конфиги при старте
+	// ═══════════════════════════════════════════════════════════════════════════
+	printf("Updating configuration from API...\n");
+	execPythonWithFallback("scripts/get_config.py", nullptr, "startup_config");
 	
 	try {
 		// ═══════════════════════════════════════════════════════════════════════════
@@ -2035,6 +2140,23 @@ int main() {
 			bot.getApi().sendMessage(message->chat->id, "Send me new config.", false, 0, keyboardWithLayout);
 			awaitingConfigContent = true;
 		});
+	bot.getEvents().onCommand("update_config", [&bot, &currentTm, &timeout](Message::Ptr message)
+		{
+			if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
+			{
+				cout << "Ignored command due the timeout!" << endl;
+				return;
+			}
+			if (find(tgListSecurity.begin(), tgListSecurity.end(), to_string(message->from->id)) == tgListSecurity.end())
+			{
+				cout << "Ignored command due security settings" << endl;
+				bot.getApi().sendMessage(message->chat->id, "You don't have permission to use this bot");
+				return;
+			}
+			bot.getApi().sendMessage(message->chat->id, "⏳ Updating configuration from API...");
+			string result = execPythonWithFallback("scripts/get_config.py", currentTm, "api_config");
+			bot.getApi().sendMessage(message->chat->id, "✅ API Config Update Result:\n" + result);
+		});
 	bot.getEvents().onCommand("creds", [&bot, &awaitingCredentialsContent, &timeout](Message::Ptr message)
 		{
 			if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
@@ -2311,7 +2433,7 @@ int main() {
 		}
 		});
 
-	bot.getEvents().onCommand("backup", [&bot, &timeout](Message::Ptr message) {
+	bot.getEvents().onCommand("backup", [&bot, &currentTm, &timeout](Message::Ptr message) {
 		if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
 		{
 			cout << "Ignored command due the timeout!" << endl;
@@ -2326,11 +2448,11 @@ int main() {
 		
 		bot.getApi().sendMessage(message->chat->id, "⏳ Creating Golden Session Backup...");
 		
-		// Execute Python script with --backup flag
-		string result = exec("python scripts/epic_auth.py --backup");
+		// Execute Python script with --backup flag (python -> py fallback)
+		string result = execPythonWithFallback("scripts/epic_auth.py --backup", currentTm, "tg_backup");
 		
 		if (result.find("BACKUP_OK") != string::npos) {
-			bot.getApi().sendMessage(message->chat->id, "✅ Backup Created Successfully!\nSaved to: Documents/EpicSessionBackup");
+			bot.getApi().sendMessage(message->chat->id, "✅ Backup Created Successfully!\nSaved to: Documents/GTA5rpVirt_EpicBackup");
 		} else {
 			bot.getApi().sendMessage(message->chat->id, "❌ Backup Failed!\nCheck logs or try manually.");
 		}
@@ -2423,7 +2545,7 @@ int main() {
 			bot.getApi().sendMessage(message->chat->id, "Force relogin...\n=================\nRelogging now", false, 0, keyboardWithLayout);
 			forceRelogin = true;
 		});
-	bot.getEvents().onCommand("restart", [&bot, &forceRelogin, &keyboardWithLayout, &timeout](Message::Ptr message)
+	bot.getEvents().onCommand("restart", [&bot, &forceRelogin, &keyboardWithLayout, &currentTm, &timeout](Message::Ptr message)
 		{
 			if (chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count() - message->date > timeout)
 			{
@@ -2437,8 +2559,8 @@ int main() {
 				bot.getApi().sendSticker(message->chat->id, "CAACAgEAAxkBAAExWJRnnoCj6G2IwoOoeyqX4CRurvrfLwACkQEAAt96sUfMX1uymPvn9jYE");
 				return;
 			}
-			bot.getApi().sendMessage(message->chat->id, "PC RESTART\n=================\nPC will restart in 5 seconds...", false, 0, keyboardWithLayout);
-			system("shutdown /r /t 5");
+			bot.getApi().sendMessage(message->chat->id, "PC RESTART\n=================\nPreparing soft reboot (Epic backup)...", false, 0, keyboardWithLayout);
+			softReboot(currentTm, "Telegram /restart");
 		});
 	bot.getEvents().onCommand("sysinfo", [&bot, &timeout](Message::Ptr message)
 		{
@@ -3069,8 +3191,11 @@ int main() {
 			Sleep(300000);
 
 			logprint("Session Guard: Creating backup...", currentTm);
-			// Run backup script
-			system("python scripts/epic_auth.py --backup-only");
+			// Run backup script (python -> py fallback)
+			int code = system("python scripts/epic_auth.py --backup-only >nul 2>&1");
+			if (code != 0) {
+				system("py scripts/epic_auth.py --backup-only >nul 2>&1");
+			}
 		}
 		});
 	sessionGuard.detach();
@@ -3132,7 +3257,10 @@ int main() {
 				
 				// Синхронный запуск - C++ ждёт пока Python завершится!
 				// Используем system() без start - это блокирующий вызов
-				int result = system("python scripts/epic_auth.py");
+				int result = system("python scripts/epic_auth.py >nul 2>&1");
+				if (result != 0) {
+					result = system("py scripts/epic_auth.py >nul 2>&1");
+				}
 				
 				if (result == 0)
 				{
@@ -3210,7 +3338,7 @@ int main() {
 					Sleep(5000);
 					if (!donotrestart)
 					{
-						system("shutdown /r /t 5");
+						softReboot(currentTm, "Long restart detected");
 					}
 
 				}
@@ -3553,10 +3681,11 @@ int main() {
 			waitinglogin++;
 			if (waitinglogin >= 30)
 			{
-				if (!donotrestart)
-				{
-					system("shutdown /r /t 5");
-				}
+							if (!donotrestart)
+							{
+								softReboot(currentTm, "Login screen timeout");
+								break;
+							}
 			}
 		}
 		Sleep(60000);
@@ -4199,7 +4328,7 @@ int main() {
 			if (!donotrestart)
 			{
 				curl_global_cleanup();
-				system("shutdown /r /t 5");
+				softReboot(currentTm, "Disconnected / forceRelogin");
 			}
 			logprint("Disconnected. Restarting", currentTm);
 		}
