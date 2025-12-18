@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10.2)
-set(VIRTAPP_VERSION "3.5.3")
+set(VIRTAPP_VERSION "3.6.2")
 project(VirtApp VERSION ${VIRTAPP_VERSION})
 
 set(CMAKE_CXX_STANDARD 17)

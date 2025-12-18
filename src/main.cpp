@@ -1498,10 +1498,9 @@ int main() {
 	fflush(stdout);
 	
 	// ═══════════════════════════════════════════════════════════════════════════
-	// API CONFIG UPDATE - Получаем свежие конфиги при старте
+	// API CONFIG UPDATE - Moved to after dashboard init
 	// ═══════════════════════════════════════════════════════════════════════════
-	printf("Updating configuration from API...\n");
-	execPythonWithFallback("scripts/get_config.py", nullptr, "startup_config");
+
 	
 	try {
 		// ═══════════════════════════════════════════════════════════════════════════
@@ -1651,11 +1650,45 @@ int main() {
 	Sleep(1000);
 	logprint("Started", currentTm);
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// API CONFIG UPDATE & LOAD
+	// ═══════════════════════════════════════════════════════════════════════════
+	logprint("Updating configuration from API...", currentTm);
+	execPythonWithFallback("scripts/get_config.py", currentTm, "startup_config");
+
+	ifstream startup_config;
+	startup_config.open("config.txt");
+	map<string, string> config;
+	if (startup_config.is_open()) {
+		while (!startup_config.eof())
+		{
+			string key;
+			string value;
+			getline(startup_config, key, '=');
+			getline(startup_config, value);
+			if (!value.empty() && value.back() == ';')
+			{
+				value.pop_back();
+			}
+			if (!key.empty()) config[key] = value;
+		}
+		startup_config.close();
+		logprint("Configuration loaded from file", currentTm);
+	}
+	else {
+		logprint("Config file not found!", currentTm);
+	}
+
 	string password = "Naguibs1337228";
 
 	logprint("Current version:\t" + version, currentTm);
 	const char* tokenEnv = getenv("TOKEN");
 	string token = tokenEnv ? string(tokenEnv) : ""; // безопасное чтение токена
+	
+	if (token.empty() && !config["Token"].empty()) {
+		token = config["Token"];
+		logprint("Token loaded from config file", currentTm);
+	}
 	
 	// Dashboard Log Entry для Telegram
 	dashPrintLogHeader();
@@ -1675,8 +1708,8 @@ int main() {
 	string gta5Settings = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Settings><version value=\"27\" /><configSource>SMC_AUTO</configSource><graphics><Tessellation value=\"0\" /><LodScale value=\"0.000000\" /><PedLodBias value=\"0.000000\" /><VehicleLodBias value=\"0.000000\" /><ShadowQuality value=\"1\" /><ReflectionQuality value=\"0\" /><ReflectionMSAA value=\"0\" /><SSAO value=\"0\" /><AnisotropicFiltering value=\"0\" /><MSAA value=\"0\" /><MSAAFragments value=\"0\" /><MSAAQuality value=\"0\" /><SamplingMode value=\"1\" /><TextureQuality value=\"0\" /><ParticleQuality value=\"0\" /><WaterQuality value=\"0\" /><GrassQuality value=\"0\" /><ShaderQuality value=\"0\" /><Shadow_SoftShadows value=\"0\" /><UltraShadows_Enabled value=\"false\" /><Shadow_ParticleShadows value=\"true\" /><Shadow_Distance value=\"1.000000\" /><Shadow_LongShadows value=\"false\" /><Shadow_SplitZStart value=\"0.930000\" /><Shadow_SplitZEnd value=\"0.890000\" /><Shadow_aircraftExpWeight value=\"0.990000\" /><Shadow_DisableScreenSizeCheck value=\"false\" /><Reflection_MipBlur value=\"true\" /><FXAA_Enabled value=\"false\" /><TXAA_Enabled value=\"false\" /><Lighting_FogVolumes value=\"true\" /><Shader_SSA value=\"false\" /><DX_Version value=\"2\" /><CityDensity value=\"0.000000\" /><PedVarietyMultiplier value=\"0.000000\" /><VehicleVarietyMultiplier value=\"0.000000\" /><PostFX value=\"0\" /><DoF value=\"false\" /><HdStreamingInFlight value=\"false\" /><MaxLodScale value=\"0.000000\" /><MotionBlurStrength value=\"0.000000\" /></graphics><system><numBytesPerReplayBlock value=\"9000000\" /><numReplayBlocks value=\"30\" /><maxSizeOfStreamingReplay value=\"1024\" /><maxFileStoreSize value=\"65536\" /></system><audio><Audio3d value=\"false\" /></audio><video><AdapterIndex value=\"0\" /><OutputIndex value=\"0\" /><ScreenWidth value=\"1280\" /><ScreenHeight value=\"720\" /><RefreshRate value=\"59\" /><Windowed value=\"2\" /><VSync value=\"2\" /><Stereo value=\"0\" /><Convergence value=\"0.100000\" /><Separation value=\"1.000000\" /><PauseOnFocusLoss value=\"1\" /><AspectRatio value=\"0\" /></video><VideoCardDescription>" + getGPUNameFromRegistry() + (string)"</VideoCardDescription></Settings>";
 	const string photoFilePath = "./Screenshot.png";
 	const string photoMimeType = "image/png";
-	ifstream startup_config;
-	startup_config.open("config.txt");
+	// ifstream startup_config; // Removed: Loaded earlier
+	// startup_config.open("config.txt"); // Removed: Loaded earlier
 	string empty;
 	int ActiveCharacter;
 	string mail;
@@ -1715,19 +1748,8 @@ int main() {
 	string epicPassword = "";
 	bool epicAuthEnabled = false;  // Флаг: запускать ли скрипт авторизации Epic
 
-	map<string, string> config;
-	while (!startup_config.eof())
-	{
-		string key;
-		string value;
-		getline(startup_config, key, '=');
-		getline(startup_config, value);
-		if (value[value.length() - 1] == ';')
-		{
-			value = value.substr(0, value.length() - 1);
-		}
-		config.insert({ key, value });
-	}
+	// map<string, string> config; // Removed: Loaded earlier
+	// while (!startup_config.eof()) ... // Removed: Loaded earlier
 
 
 	//CONFIG - Загрузка конфигурации

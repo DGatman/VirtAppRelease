@@ -22,10 +22,10 @@ Handles authentication (Epic Games), queue management, and basic in-game actions
 - **scripts/main.py:** Python entry point (Google Sheets integration)
 
 ## 🔄 Current Status
-- **Version:** 3.6.0
-- **Last Update:** 2024-05-22
+- **Version:** 3.6.2
+- **Last Update:** 2025-12-18
 - **State:** Active Development
-- **Recent Focus:** Интеграция API-клиента для синхронизации конфигов (`get_config.py`); реализация "мягкого ребута" (закрытие Epic -> Backup -> Reboot); исправление критической ошибки импорта в `main.py`; добавление команды `/update_config` в Telegram.
+- **Recent Focus:** Исправлен порядок инициализации (конфиг грузится до UI); токен читается из конфига; версия 3.6.2.
 - **Build Note:** Windows сборка: добавлен `get_config.py` в автозапуск. Реализован механизм `softReboot` для сохранения сессий Epic Games перед перезагрузкой. Исправлена проблема с `Credentials` в Python скриптах.
 
 ## 📂 Directory Structure
