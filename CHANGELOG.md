@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.2] - 2025-02-20
+
+### Fixed
+- **Config Loading:** `scripts/get_config.py` now executes *after* console initialization, ensuring logs are visible for debugging.
+- **Token Fallback:** Added logic to read `Token` from `config.txt` if the `Token` environment variable is not set.
+- **Build System:** Fixed `BUILD_v2.6_SCRIPT.bat` to correctly locate `cmake.exe` in Visual Studio 2022 and use the correct vcpkg triplet (`x64-windows`).
+
 ## [3.6.0] - 2024-05-22
 
 ### Added
