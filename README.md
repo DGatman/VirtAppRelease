@@ -17,21 +17,23 @@
 ## ✨ Возможности
 
 - 🤖 **Telegram Bot** - Полное управление через Telegram
+- ⚙️ **Auto Config** - Автоматическая синхронизация настроек и учетных данных через API
 - 🖼️ **OCR** - Распознавание текста на экране (Tesseract)
 - 🖱️ **Input Simulation** - Эмуляция клавиатуры и мыши (Interception Driver)
 - 📊 **Google Sheets Integration** - Автоматическое обновление статистики
-- 🎮 **Game Automation** - Автоматизация рутинных действий (AFK, рулетка; сбор подарков/BP отключен) с безопасным выходом через F10 и пропуском цикла без ребута при сбоях
+- 🎮 **Game Automation** - Автоматизация рутинных действий (AFK, рулетка; сбор подарков/BP отключен) с безопасным выходом через F10, пропуском цикла без ребута при сбоях открытия меню/рулетки
+- 🔄 **Soft Reboot** - Умная перезагрузка системы с сохранением игровых сессий
 - 📸 **Screenshots** - Удаленный мониторинг через скриншоты
 
 ## 🏗️ Архитектура
 
 ```
 ┌─────────────────┐
-│  Telegram Bot   │ ◄─── Управление
+│  Telegram Bot   │ ◄─── Управление & /update_config
 └────────┬────────┘
          │
     ┌────▼─────┐
-    │  C++ App │
+    │  C++ App │ ◄────── API Config Sync (get_config.py)
     └─┬──┬──┬──┘
       │  │  │
       │  │  └──► Python Scripts ──► Google Sheets API
@@ -46,7 +48,7 @@
 ```
 GTA5rpVirt/
 ├── src/                  # C++ исходный код
-│   ├── main.cpp          # Точка входа, логика бота
+│   ├── main.cpp          # Точка входа, логика бота, Soft Reboot
 │   ├── VirtApp.h         # Заголовочный файл
 │   ├── ScreenScaner.cpp  # OCR и захват экрана
 │   ├── ScreenScaner.h
@@ -54,7 +56,8 @@ GTA5rpVirt/
 │   └── utils.h
 ├── scripts/              # Python скрипты
 │   ├── main.py           # Работа с Google Sheets
-│   ├── get_server_from_sheet.py
+│   ├── get_config.py     # Синхронизация конфигов через API
+│   ├── epic_auth.py      # Авторизация Epic Games & Backup
 │   └── ...
 ├── data/                 # Данные приложения
 │   └── tessdata/         # Языковые файлы Tesseract
@@ -183,7 +186,7 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
 cmake --build . --config Release
 ```
 
-Исполняемый файл будет в `build/Release/VirtApp.exe`
+Исполняемый файл будет в `build/Release/VirtApp-3.5.3.exe` (автокопия `VirtApp.exe` сохраняется для совместимости со скриптами)
 
 ## 🎮 Использование
 
@@ -191,7 +194,9 @@ cmake --build . --config Release
 
 ```bash
 cd build/Release
-VirtApp.exe
+VirtApp-3.5.3.exe
+# или совместимый алиас
+# VirtApp.exe
 ```
 
 При первом запуске бот:
@@ -230,8 +235,10 @@ VirtApp.exe
 - `/hwid` - Информация о железе
 - `/config` - Показать текущий конфиг
 - `/setconfig` - Обновить конфиг
+- `/update_config` - Обновить конфиг и credentials через API
 - `/pycheck` - Проверить установку Python
-- `/restart` - Перезагрузить ПК (⚠️ осторожно!)
+- `/restart` - Мягкая перезагрузка ПК (с сохранением сессии Epic)
+- `/reboot` - Синоним /restart (мягкая перезагрузка)
 
 ### Дополнительные
 - `/profiles` - Получить статистику персонажей

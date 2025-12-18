@@ -1,29 +1,51 @@
 @echo off
 chcp 65001 >nul
-title VirtApp Updater
+echo ==========================================================
+echo              VirtApp Updater v2.2
+echo ==========================================================
+echo.
 
-echo ===================================================
-echo 🚀 VirtApp Auto-Updater (Direct Download)
-echo ===================================================
-
-:: 1. Закрываем бота
-echo [1/3] 🛑 Закрытие VirtApp...
-taskkill /F /IM VirtApp.exe >nul 2>&1
-timeout /t 1 >nul
-
-:: 2. Скачиваем файл напрямую (без Git)
-echo [2/3] 📥 Скачивание новой версии...
-powershell -Command "Invoke-WebRequest -Uri 'https://github.com/DGatman/VirtAppRelease/raw/master/VirtApp.exe' -OutFile 'VirtApp.exe'"
-
-if %errorlevel% neq 0 (
-    echo.
-    echo [ERROR] Ошибка скачивания!
-    echo Проверьте интернет или доступность GitHub.
-    pause
-    exit /b
+REM 1. Backup config and credentials
+if exist config.txt (
+    echo [*] Saving config.txt...
+    copy /Y config.txt config.txt.bak >nul
+)
+if exist credentials.json (
+    echo [*] Saving credentials.json...
+    copy /Y credentials.json credentials.json.bak >nul
 )
 
-:: 3. Запуск
-echo [3/3] ✅ Успешно! Запуск...
-start VirtApp.exe
-exit
+REM 2. Check/Repair Git
+if not exist .git (
+    echo [!] Git repository not found. Repairing...
+    git init
+    git remote add origin https://github.com/DGatman/VirtAppRelease
+    echo [*] Fetching latest version...
+    git fetch origin
+    echo [*] Resetting to latest version...
+    git reset --hard origin/master
+) else (
+    echo [*] Cleaning local changes...
+    git reset --hard HEAD >nul
+    echo [*] Downloading updates...
+    git pull origin master
+)
+
+REM 3. Restore config and credentials
+if exist config.txt.bak (
+    echo [*] Restoring config.txt...
+    copy /Y config.txt.bak config.txt >nul
+    del config.txt.bak
+)
+if exist credentials.json.bak (
+    echo [*] Restoring credentials.json...
+    copy /Y credentials.json.bak credentials.json >nul
+    del credentials.json.bak
+)
+
+echo.
+echo ==========================================================
+echo              Update Completed Successfully!
+echo ==========================================================
+echo.
+pause

@@ -18,13 +18,15 @@ Handles authentication (Epic Games), queue management, and basic in-game actions
 - **ScreenScaner:** Screen capture and OCR processing
 - **scripts/set_local_time.py:** NTP/HTTP time synchronization
 - **scripts/epic_auth.py:** Epic Games authentication automation
-- **scripts/main.py:** Python entry point (legacy/wrapper)
+- **scripts/get_config.py:** Remote configuration sync (API client)
+- **scripts/main.py:** Python entry point (Google Sheets integration)
 
 ## 🔄 Current Status
-- **Version:** 3.5.2
-- **Last Update:** 2025-12-09
+- **Version:** 3.6.0
+- **Last Update:** 2024-05-22
 - **State:** Active Development
-- **Recent Focus:** Подарки/BP отключены по умолчанию (рулетка-only); баннер версии синхронизирован 3.5.2; безопасный выход через F10 без ребутов
+- **Recent Focus:** Интеграция API-клиента для синхронизации конфигов (`get_config.py`); реализация "мягкого ребута" (закрытие Epic -> Backup -> Reboot); исправление критической ошибки импорта в `main.py`; добавление команды `/update_config` в Telegram.
+- **Build Note:** Windows сборка: добавлен `get_config.py` в автозапуск. Реализован механизм `softReboot` для сохранения сессий Epic Games перед перезагрузкой. Исправлена проблема с `Credentials` в Python скриптах.
 
 ## 📂 Directory Structure
 - `src/`: C++ source code
