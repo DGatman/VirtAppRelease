@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.3] - 2025-12-18
+
+### Fixed
+- **CRITICAL: Startup Order:** Полностью переработан порядок инициализации:
+  1. Console init
+  2. CURL init
+  3. Single instance check
+  4. **Time synchronization** (перемещена на 4-е место)
+  5. **Config download** (`get_config.py` - теперь ДО Dashboard UI!)
+  6. Dashboard UI init (последнее)
+- **Config Visibility:** Логи `get_config.py` теперь видны ПЕРЕД отрисовкой Dashboard UI.
+- **credentials.json:** Теперь создается корректно перед запуском основного функционала.
+- **API Integration:** `get_config.py` выполняется сразу после синхронизации времени, обеспечивая корректную работу SSL.
+
 ## [3.6.2] - 2025-02-20
 
 ### Fixed

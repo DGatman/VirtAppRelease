@@ -22,11 +22,11 @@ Handles authentication (Epic Games), queue management, and basic in-game actions
 - **scripts/main.py:** Python entry point (Google Sheets integration)
 
 ## 🔄 Current Status
-- **Version:** 3.6.2
+- **Version:** 3.6.3
 - **Last Update:** 2025-12-18
 - **State:** Active Development
-- **Recent Focus:** Исправлен порядок инициализации (конфиг грузится до UI); токен читается из конфига; версия 3.6.2.
-- **Build Note:** Windows сборка: добавлен `get_config.py` в автозапуск. Реализован механизм `softReboot` для сохранения сессий Epic Games перед перезагрузкой. Исправлена проблема с `Credentials` в Python скриптах.
+- **Recent Focus:** КРИТИЧЕСКИЙ ФИКС: Полностью переработан порядок запуска (time sync → get_config → Dashboard UI). Теперь credentials.json создается корректно ДО старта основной логики.
+- **Build Note:** Windows сборка: `get_config.py` теперь выполняется на 5-м шаге (после time sync, до Dashboard UI). Реализован механизм `softReboot` для сохранения сессий Epic Games перед перезагрузкой.
 
 ## 📂 Directory Structure
 - `src/`: C++ source code
