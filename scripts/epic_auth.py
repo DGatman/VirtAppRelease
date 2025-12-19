@@ -9,18 +9,51 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Optional
 
-# Third-party libraries
-try:
-    import cv2
-    import mss
-    import numpy as np
-    import win32api
-    import win32con
-    import win32gui
-    import win32clipboard
-    from pywinauto.keyboard import send_keys
-except ImportError:
-    print("[ERROR] Missing dependencies. Please run: pip install -r requirements.txt")
+REQUIRED_MODULES = [
+    "cv2",
+    "mss",
+    "numpy",
+    "win32api",
+    "win32con",
+    "win32gui",
+    "win32clipboard",
+    "pywinauto.keyboard",
+]
+
+
+def ensure_dependencies():
+    """Auto-install required packages if missing (headless fleet safe)."""
+    missing = []
+    for mod in REQUIRED_MODULES:
+        try:
+            __import__(mod)
+        except Exception:
+            missing.append(mod)
+
+    if not missing:
+        return
+
+    root = Path(__file__).parent.parent
+    req = root / "requirements.txt"
+    print(f"[INFO] Installing missing deps: {', '.join(missing)}", flush=True)
+    cmd = [sys.executable, "-m", "pip", "install", "-r", str(req)]
+    try:
+        subprocess.check_call(cmd)
+    except Exception as e:
+        print(f"[ERROR] Failed to install dependencies: {e}", flush=True)
+        sys.exit(1)
+
+
+# Third-party libraries (loaded after bootstrap)
+ensure_dependencies()
+import cv2
+import mss
+import numpy as np
+import win32api
+import win32con
+import win32gui
+import win32clipboard
+from pywinauto.keyboard import send_keys
 
 # ==================================================================================
 # CONFIGURATION & PATHS
