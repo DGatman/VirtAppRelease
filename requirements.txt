@@ -1,2 +1,16 @@
 gspread
 oauth2client
+opencv-python
+mss
+numpy
+pywin32
+pywinauto
+requests
+opencv-python
+mss
+numpy
+pywin32
+pywinauto
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
