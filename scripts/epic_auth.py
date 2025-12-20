@@ -273,7 +273,14 @@ def match_template_multiscale(screen_gray, template_gray, scales):
             best = Match(float(max_val), int(max_loc[0]), int(max_loc[1]), int(t.shape[1]), int(t.shape[0]), float(scale))
     return best
 
-def wait_template(hwnd, template_name, threshold=0.85, timeout=30, scales=[0.9, 1.0, 1.1]):
+def wait_template(
+    hwnd,
+    template_name,
+    threshold=0.85,
+    timeout=30,
+    scales=[0.9, 1.0, 1.1],
+    dump_on_fail: bool = True,
+):
     template_path = TEMPLATES_DIR / template_name
     if not template_path.exists():
         log(f"Template not found: {template_name}")
@@ -306,8 +313,21 @@ def wait_template(hwnd, template_name, threshold=0.85, timeout=30, scales=[0.9, 
         )
     else:
         log(f"Template '{template_name}' not found. No matches computed.")
-    _debug_dump_window(hwnd, f"no_{Path(template_name).stem}")
+    if dump_on_fail:
+        _debug_dump_window(hwnd, f"no_{Path(template_name).stem}")
     return None
+
+
+def probe_template(hwnd, template_name, threshold=0.85, timeout=2, scales=[0.9, 1.0, 1.1]):
+    """Short probe without dumping screenshots on failure."""
+    return wait_template(
+        hwnd,
+        template_name,
+        threshold=threshold,
+        timeout=timeout,
+        scales=scales,
+        dump_on_fail=False,
+    )
 
 
 def find_epic_window():
@@ -538,8 +558,8 @@ def guard_mode(profile_name="default"):
         if epic_alive:
             hwnd = find_epic_window()
             if hwnd:
-                # If success is missing, try login once per interval
-                if not wait_template(hwnd, "success.png", timeout=3):
+                # Probe without dumping screenshots every interval
+                if not probe_template(hwnd, "success.png", threshold=0.90, timeout=2):
                     if login and password:
                         log("Guard: Epic not logged in. Attempting auto-login...")
                         auto_login(hwnd, login, password)
@@ -599,19 +619,47 @@ def main():
                 break
             time.sleep(1)
 
-    if hwnd:
-        log("Epic window found. Checking if login is needed...")
-        if wait_template(hwnd, "success.png", timeout=10):
-            log("Session restored (success template found).")
-        elif login and password:
-            log("Session expired. Attempting auto-login...")
-            if auto_login(hwnd, login, password):
-                perform_backup(args.profile)
-        else:
-            log("Login needed but credentials missing in config.txt")
-    else:
+    if not hwnd:
         log("Failed to find Epic window.")
+        sys.exit(2)
 
+    log("Epic window found. Probing UI state...")
+    bring_to_front(hwnd)
+    _debug_dump_window(hwnd, "start")
+
+    # Determine state: login form vs already logged in
+    login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
+    password_field = probe_template(hwnd, "password_field.png", threshold=0.80, timeout=2)
+    success = probe_template(hwnd, "success.png", threshold=0.90, timeout=2)
+
+    if success and not (login_field or password_field):
+        log("Epic appears logged in (success template found).")
+        perform_backup(args.profile)
+        sys.exit(0)
+
+    if (login_field or password_field):
+        log("Epic appears NOT logged in (login fields detected).")
+        if not (login and password):
+            log("EpicLogin/EpicPassword missing in config.txt")
+            _debug_dump_window(hwnd, "missing_creds")
+            sys.exit(3)
+
+        log("Attempting auto-login...")
+        ok = auto_login(hwnd, login, password)
+        if ok:
+            perform_backup(args.profile)
+            sys.exit(0)
+
+        log("Auto-login failed.")
+        _debug_dump_window(hwnd, "login_failed")
+        sys.exit(4)
+
+    # Neither success nor login UI matched: templates likely wrong DPI/theme
+    log("Epic UI state UNKNOWN: neither success nor login fields matched. Templates likely mismatch.")
+    _debug_dump_window(hwnd, "unknown_ui")
+    sys.exit(5)
+
+    # unreachable due to sys.exit above, but keep structure for safety
     subprocess.Popen([sys.executable, __file__, "--guard", "--profile", args.profile], creationflags=0x08000000)
     log("Guard spawned. Done.")
 
