@@ -25,6 +25,18 @@ if "%ERRORLEVEL%"=="0" (
     echo [Update] ⬇️ Pulling updates from GitHub...
     git remote set-url origin https://github.com/DGatman/VirtAppRelease.git
     git pull
+
+    :: 3. Epic auth (restore/login + spawn guard)
+    echo [Epic] 🔐 Running epic_auth.py...
+    if exist "scripts\epic_auth.py" (
+        if exist "epic_auth.log" del /q "epic_auth.log" >nul 2>&1
+        python scripts\epic_auth.py >> epic_auth.log 2>&1
+        if errorlevel 1 (
+            py scripts\epic_auth.py >> epic_auth.log 2>&1
+        )
+    ) else (
+        echo [Epic] ⚠️ scripts\epic_auth.py not found
+    )
     
     :: 4. Start VirtApp
     echo [Start] 🚀 Launching VirtApp...

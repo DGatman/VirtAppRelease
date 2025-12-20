@@ -16,6 +16,7 @@ REQUIRED_MODULES = [
     "win32api",
     "win32con",
     "win32gui",
+    "win32process",
     "win32clipboard",
     "pywinauto.keyboard",
 ]
@@ -52,6 +53,7 @@ import numpy as np
 import win32api
 import win32con
 import win32gui
+import win32process
 import win32clipboard
 from pywinauto.keyboard import send_keys
 
@@ -71,6 +73,8 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 CONFIG_PATH = Path(__file__).parent.parent / "config.txt"
 DEBUG_DIR = Path(__file__).parent / "debug"
 
+LOG_PATH = Path(__file__).parent.parent / "epic_auth.log"
+
 DEFAULT_WINDOW_CLASS = "UnrealWindow"
 GUARD_INTERVAL = 300  # 5 minutes
 
@@ -80,7 +84,27 @@ GUARD_INTERVAL = 300  # 5 minutes
 
 def log(message):
     timestamp = datetime.now().strftime("%H:%M:%S")
-    print(f"[{timestamp}] {message}", flush=True)
+    line = f"[{timestamp}] {message}"
+    print(line, flush=True)
+    try:
+        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with LOG_PATH.open("a", encoding="utf-8", errors="ignore") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
+def _debug_dump_window(hwnd: int, tag: str):
+    """Write a screenshot of the target window to scripts/debug for diagnosis."""
+    try:
+        DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        bgr = capture_window_bgr(hwnd)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out = DEBUG_DIR / f"epic_{tag}_{ts}.png"
+        cv2.imwrite(str(out), bgr)
+        log(f"Debug dump saved: {out}")
+    except Exception as e:
+        log(f"Debug dump failed: {e}")
 
 def is_process_running(process_name):
     try:
@@ -89,6 +113,67 @@ def is_process_running(process_name):
         return process_name.lower() in output.lower()
     except Exception:
         return False
+
+
+def get_pids_by_image(process_name: str) -> list[int]:
+    """Return list of PIDs for a process name using tasklist (no extra deps)."""
+    try:
+        cmd = f'tasklist /FI "IMAGENAME eq {process_name}" /FO CSV /NH'
+        out = subprocess.check_output(cmd, shell=True).decode("cp866", errors="ignore").strip()
+        if not out or "INFO:" in out:
+            return []
+
+        # CSV line: "Image Name","PID","Session Name","Session#","Mem Usage"
+        import csv
+        rows = list(csv.reader(out.splitlines()))
+        pids: list[int] = []
+        for row in rows:
+            if len(row) >= 2 and row[0].lower() == process_name.lower():
+                try:
+                    pids.append(int(row[1]))
+                except Exception:
+                    pass
+        return pids
+    except Exception:
+        return []
+
+
+def _enum_windows():
+    windows: list[int] = []
+
+    def enum_handler(h, _):
+        if not win32gui.IsWindow(h):
+            return
+        windows.append(h)
+
+    win32gui.EnumWindows(enum_handler, None)
+    return windows
+
+
+def _window_info(hwnd: int) -> str:
+    try:
+        title = win32gui.GetWindowText(hwnd) or ""
+    except Exception:
+        title = ""
+    try:
+        cls = win32gui.GetClassName(hwnd) or ""
+    except Exception:
+        cls = ""
+    try:
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+    except Exception:
+        pid = 0
+    try:
+        l, t, r, b = win32gui.GetWindowRect(hwnd)
+        w, h = max(0, r - l), max(0, b - t)
+    except Exception:
+        w, h = 0, 0
+    vis = False
+    try:
+        vis = bool(win32gui.IsWindowVisible(hwnd))
+    except Exception:
+        pass
+    return f"hwnd=0x{hwnd:08X} pid={pid} vis={vis} {w}x{h} class='{cls}' title='{title}'"
 
 def kill_process(process_name):
     log(f"Killing {process_name}...")
@@ -197,6 +282,7 @@ def wait_template(hwnd, template_name, threshold=0.85, timeout=30, scales=[0.9, 
     template_gray = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
     deadline = time.time() + timeout
     
+    best_seen: Optional[Match] = None
     while time.time() < deadline:
         try:
             bgr = capture_window_bgr(hwnd)
@@ -205,36 +291,97 @@ def wait_template(hwnd, template_name, threshold=0.85, timeout=30, scales=[0.9, 
             
             if match and match.score >= threshold:
                 return match
+
+            if match and (best_seen is None or match.score > best_seen.score):
+                best_seen = match
         except Exception as e:
             log(f"Vision error: {e}")
         
         time.sleep(0.5)
+
+    if best_seen is not None:
+        log(
+            f"Template '{template_name}' not found. Best score={best_seen.score:.3f} "
+            f"scale={best_seen.scale:.2f} at ({best_seen.x},{best_seen.y})"
+        )
+    else:
+        log(f"Template '{template_name}' not found. No matches computed.")
+    _debug_dump_window(hwnd, f"no_{Path(template_name).stem}")
     return None
 
 
 def find_epic_window():
-    """Find Epic window by class or by title fallback."""
+    """Find Epic window.
+
+    Priority:
+    1) Match windows by PID(s) of EpicGamesLauncher.exe (most reliable)
+    2) Match by known class
+    3) Match by title substring
+    """
+    pids = set(get_pids_by_image("EpicGamesLauncher.exe"))
+
+    candidates: list[int] = []
+    for h in _enum_windows():
+        try:
+            _, pid = win32process.GetWindowThreadProcessId(h)
+        except Exception:
+            continue
+        if pids and pid in pids:
+            candidates.append(h)
+
+    def score_window(h: int) -> int:
+        try:
+            l, t, r, b = win32gui.GetWindowRect(h)
+            area = max(0, r - l) * max(0, b - t)
+        except Exception:
+            area = 0
+        try:
+            title = (win32gui.GetWindowText(h) or "").strip()
+        except Exception:
+            title = ""
+        try:
+            vis = bool(win32gui.IsWindowVisible(h))
+        except Exception:
+            vis = False
+        # Prefer visible, titled, large windows
+        return (1000000 if vis else 0) + (100000 if title else 0) + area
+
+    if candidates:
+        best = max(candidates, key=score_window)
+        log(f"Epic window (by PID) selected: {_window_info(best)}")
+        return best
+
     hwnd = win32gui.FindWindow(DEFAULT_WINDOW_CLASS, None)
     if hwnd and win32gui.IsWindow(hwnd):
+        log(f"Epic window (by class) selected: {_window_info(hwnd)}")
         return hwnd
 
-    # Fallback: search by title contains "Epic Games Launcher"
     target_titles = ["epic games launcher", "epic games"]
-    found = []
-
-    def enum_handler(h, _):
-        if not win32gui.IsWindowVisible(h):
-            return
+    title_candidates: list[int] = []
+    for h in _enum_windows():
         try:
+            if not win32gui.IsWindowVisible(h):
+                continue
             title = win32gui.GetWindowText(h) or ""
         except Exception:
-            return
+            continue
         low = title.lower()
         if any(t in low for t in target_titles):
-            found.append(h)
+            title_candidates.append(h)
 
-    win32gui.EnumWindows(enum_handler, None)
-    return found[0] if found else None
+    if title_candidates:
+        best = max(title_candidates, key=score_window)
+        log(f"Epic window (by title) selected: {_window_info(best)}")
+        return best
+
+    # As a last resort, print some diagnostics
+    try:
+        log("Epic window not found. Top windows snapshot:")
+        for h in _enum_windows()[:20]:
+            log("  " + _window_info(h))
+    except Exception:
+        pass
+    return None
 
 def bring_to_front(hwnd):
     if win32gui.IsIconic(hwnd):
@@ -365,14 +512,43 @@ def auto_login(hwnd, login, password):
 # ==================================================================================
 
 def guard_mode(profile_name="default"):
+    """Background guard.
+
+    Every GUARD_INTERVAL:
+    - If Epic/GTA is running: backup session.
+    - If Epic is running and we are NOT logged in: try auto-login (if creds exist).
+
+    This makes it useful even when the app starts epic_auth in --guard mode only.
+    """
     log(f"Guard mode active for [{profile_name}].")
     time.sleep(10)
+
+    config = parse_kv_config(CONFIG_PATH)
+    login = config.get("EpicLogin")
+    password = config.get("EpicPassword")
+
     while True:
-        if is_process_running("EpicGamesLauncher.exe") or is_process_running("GTA5.exe"):
-            perform_backup(profile_name)
-        else:
+        epic_alive = is_process_running("EpicGamesLauncher.exe")
+        gta_alive = is_process_running("GTA5.exe")
+
+        if not (epic_alive or gta_alive):
             log("Processes closed. Guard exiting.")
             break
+
+        if epic_alive:
+            hwnd = find_epic_window()
+            if hwnd:
+                # If success is missing, try login once per interval
+                if not wait_template(hwnd, "success.png", timeout=3):
+                    if login and password:
+                        log("Guard: Epic not logged in. Attempting auto-login...")
+                        auto_login(hwnd, login, password)
+                    else:
+                        log("Guard: Epic not logged in but EpicLogin/EpicPassword missing.")
+            else:
+                log("Guard: Epic process running but window not found.")
+
+        perform_backup(profile_name)
         time.sleep(GUARD_INTERVAL)
 
 def main():
@@ -393,7 +569,9 @@ def main():
         active_char = config.get("Active Character", "1")
         args.profile = f"profile_{active_char}"
     
-    log(f"--- EPIC AUTH MODERN v9.2 START [Profile: {args.profile}] ---")
+    log(f"--- EPIC AUTH MODERN v9.3 START [Profile: {args.profile}] ---")
+    log(f"Python: {sys.executable}")
+    log(f"Args: {sys.argv}")
 
     if args.guard:
         guard_mode(args.profile)
