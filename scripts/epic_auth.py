@@ -211,6 +211,31 @@ def wait_template(hwnd, template_name, threshold=0.85, timeout=30, scales=[0.9, 
         time.sleep(0.5)
     return None
 
+
+def find_epic_window():
+    """Find Epic window by class or by title fallback."""
+    hwnd = win32gui.FindWindow(DEFAULT_WINDOW_CLASS, None)
+    if hwnd and win32gui.IsWindow(hwnd):
+        return hwnd
+
+    # Fallback: search by title contains "Epic Games Launcher"
+    target_titles = ["epic games launcher", "epic games"]
+    found = []
+
+    def enum_handler(h, _):
+        if not win32gui.IsWindowVisible(h):
+            return
+        try:
+            title = win32gui.GetWindowText(h) or ""
+        except Exception:
+            return
+        low = title.lower()
+        if any(t in low for t in target_titles):
+            found.append(h)
+
+    win32gui.EnumWindows(enum_handler, None)
+    return found[0] if found else None
+
 def bring_to_front(hwnd):
     if win32gui.IsIconic(hwnd):
         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
@@ -381,33 +406,33 @@ def main():
     login = config.get("EpicLogin")
     password = config.get("EpicPassword")
 
+    hwnd = None
+
     if is_process_running("EpicGamesLauncher.exe"):
-        log("Epic is already running. Updating backup.")
-        perform_backup(args.profile)
+        log("Epic is already running. Checking login state...")
+        hwnd = find_epic_window()
     else:
         perform_restore(args.profile)
         log("Launching Epic...")
         subprocess.Popen([DEFAULT_EPIC_EXE, "-silent"], close_fds=True)
-        
-        hwnd = 0
         for _ in range(60):
-            hwnd = win32gui.FindWindow(DEFAULT_WINDOW_CLASS, None)
+            hwnd = find_epic_window()
             if hwnd and win32gui.IsWindowVisible(hwnd):
                 break
             time.sleep(1)
-        
-        if hwnd:
-            log("Epic window found. Checking if login is needed...")
-            if wait_template(hwnd, "success.png", timeout=10):
-                log("Session restored successfully via files.")
-            elif login and password:
-                log("Session expired. Attempting auto-login...")
-                if auto_login(hwnd, login, password):
-                    perform_backup(args.profile)
-            else:
-                log("Login needed but credentials missing in config.txt")
+
+    if hwnd:
+        log("Epic window found. Checking if login is needed...")
+        if wait_template(hwnd, "success.png", timeout=10):
+            log("Session restored (success template found).")
+        elif login and password:
+            log("Session expired. Attempting auto-login...")
+            if auto_login(hwnd, login, password):
+                perform_backup(args.profile)
         else:
-            log("Failed to find Epic window after launch.")
+            log("Login needed but credentials missing in config.txt")
+    else:
+        log("Failed to find Epic window.")
 
     subprocess.Popen([sys.executable, __file__, "--guard", "--profile", args.profile], creationflags=0x08000000)
     log("Guard spawned. Done.")
