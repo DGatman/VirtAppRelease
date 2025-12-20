@@ -8,6 +8,7 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Optional
+import msvcrt
 
 REQUIRED_MODULES = [
     "cv2",
@@ -74,6 +75,7 @@ CONFIG_PATH = Path(__file__).parent.parent / "config.txt"
 DEBUG_DIR = Path(__file__).parent / "debug"
 
 LOG_PATH = Path(__file__).parent.parent / "epic_auth.log"
+GUARD_LOCK_PATH = Path(__file__).parent.parent / "epic_auth_guard.lock"
 
 DEFAULT_WINDOW_CLASS = "UnrealWindow"
 GUARD_INTERVAL = 300  # 5 minutes
@@ -136,6 +138,29 @@ def get_pids_by_image(process_name: str) -> list[int]:
         return pids
     except Exception:
         return []
+
+
+def _is_any_process_running(names: Iterable[str]) -> bool:
+    for n in names:
+        if is_process_running(n):
+            return True
+    return False
+
+
+def spawn_guard(profile: str):
+    """Spawn background guard process (safe to call repeatedly).
+
+    Guard uses a lock file to ensure only one instance runs.
+    """
+    try:
+        subprocess.Popen(
+            [sys.executable, __file__, "--guard", "--profile", profile],
+            creationflags=0x08000000,  # CREATE_NO_WINDOW
+            close_fds=True,
+        )
+        log("Guard spawned.")
+    except Exception as e:
+        log(f"Failed to spawn guard: {e}")
 
 
 def _enum_windows():
@@ -540,36 +565,95 @@ def guard_mode(profile_name="default"):
 
     This makes it useful even when the app starts epic_auth in --guard mode only.
     """
+    # Single-instance guard lock
+    try:
+        GUARD_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+        lock_f = GUARD_LOCK_PATH.open("a+")
+        try:
+            msvcrt.locking(lock_f.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            log("Guard already running (lock held). Exiting this guard instance.")
+            return
+    except Exception as e:
+        log(f"Guard lock init failed (continuing without lock): {e}")
+        lock_f = None
+
     log(f"Guard mode active for [{profile_name}].")
-    time.sleep(10)
+    time.sleep(5)
 
-    config = parse_kv_config(CONFIG_PATH)
-    login = config.get("EpicLogin")
-    password = config.get("EpicPassword")
+    poll_interval = 10  # seconds (how often we check Epic)
+    backup_interval = GUARD_INTERVAL  # keep existing 5 min default
+    login_attempt_cooldown = 30  # seconds (avoid spamming)
+    config_reload_interval = 60
 
-    while True:
-        epic_alive = is_process_running("EpicGamesLauncher.exe")
-        gta_alive = is_process_running("GTA5.exe")
+    last_backup = 0.0
+    last_login_attempt = 0.0
+    last_config_reload = 0.0
+    last_unknown_dump = 0.0
 
-        if not (epic_alive or gta_alive):
-            log("Processes closed. Guard exiting.")
-            break
+    login = None
+    password = None
 
-        if epic_alive:
-            hwnd = find_epic_window()
-            if hwnd:
-                # Probe without dumping screenshots every interval
-                if not probe_template(hwnd, "success.png", threshold=0.90, timeout=2):
-                    if login and password:
-                        log("Guard: Epic not logged in. Attempting auto-login...")
-                        auto_login(hwnd, login, password)
+    try:
+        while True:
+            now = time.time()
+            epic_alive = is_process_running("EpicGamesLauncher.exe")
+            gta_alive = _is_any_process_running(["GTA5.exe", "ragemp_v.exe"])  # support both
+
+            if now - last_config_reload >= config_reload_interval:
+                cfg = parse_kv_config(CONFIG_PATH)
+                login = cfg.get("EpicLogin")
+                password = cfg.get("EpicPassword")
+                last_config_reload = now
+
+            if epic_alive:
+                hwnd = find_epic_window()
+                if hwnd:
+                    bring_to_front(hwnd)
+
+                    success = probe_template(hwnd, "success.png", threshold=0.90, timeout=2)
+                    if success:
+                        if now - last_backup >= backup_interval:
+                            perform_backup(profile_name)
+                            last_backup = now
                     else:
-                        log("Guard: Epic not logged in but EpicLogin/EpicPassword missing.")
-            else:
-                log("Guard: Epic process running but window not found.")
+                        # not logged in (or template mismatch)
+                        login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
+                        password_field = probe_template(hwnd, "password_field.png", threshold=0.80, timeout=2)
 
-        perform_backup(profile_name)
-        time.sleep(GUARD_INTERVAL)
+                        if (login_field or password_field):
+                            if login and password and (now - last_login_attempt >= login_attempt_cooldown):
+                                log("Guard: Epic not logged in. Attempting auto-login...")
+                                last_login_attempt = now
+                                auto_login(hwnd, login, password)
+                        else:
+                            # Unknown UI (most often DPI/template mismatch). Dump rarely.
+                            if now - last_unknown_dump >= backup_interval:
+                                log("Guard: Epic UI state unknown (no success/login templates). Saving debug screenshot.")
+                                _debug_dump_window(hwnd, "guard_unknown_ui")
+                                last_unknown_dump = now
+                else:
+                    # Epic process running but no window
+                    if now - last_unknown_dump >= backup_interval:
+                        log("Guard: Epic process running but window not found.")
+                        last_unknown_dump = now
+
+            # If game is running but Epic isn't, still keep looping.
+            if gta_alive and (time.time() - last_backup >= backup_interval) and epic_alive:
+                perform_backup(profile_name)
+                last_backup = time.time()
+
+            time.sleep(poll_interval)
+    finally:
+        try:
+            if lock_f is not None:
+                try:
+                    msvcrt.locking(lock_f.fileno(), msvcrt.LK_UNLCK, 1)
+                except Exception:
+                    pass
+                lock_f.close()
+        except Exception:
+            pass
 
 def main():
     parser = argparse.ArgumentParser()
@@ -605,63 +689,71 @@ def main():
     password = config.get("EpicPassword")
 
     hwnd = None
+    exit_code = 0
 
-    if is_process_running("EpicGamesLauncher.exe"):
-        log("Epic is already running. Checking login state...")
-        hwnd = find_epic_window()
-    else:
-        perform_restore(args.profile)
-        log("Launching Epic...")
-        subprocess.Popen([DEFAULT_EPIC_EXE, "-silent"], close_fds=True)
-        for _ in range(60):
+    try:
+        if is_process_running("EpicGamesLauncher.exe"):
+            log("Epic is already running. Checking login state...")
             hwnd = find_epic_window()
-            if hwnd and win32gui.IsWindowVisible(hwnd):
-                break
-            time.sleep(1)
+        else:
+            perform_restore(args.profile)
+            log("Launching Epic...")
+            subprocess.Popen([DEFAULT_EPIC_EXE, "-silent"], close_fds=True)
+            for _ in range(60):
+                hwnd = find_epic_window()
+                if hwnd and win32gui.IsWindowVisible(hwnd):
+                    break
+                time.sleep(1)
 
-    if not hwnd:
-        log("Failed to find Epic window.")
-        sys.exit(2)
+        if not hwnd:
+            log("Failed to find Epic window.")
+            exit_code = 2
+            return
 
-    log("Epic window found. Probing UI state...")
-    bring_to_front(hwnd)
-    _debug_dump_window(hwnd, "start")
+        log("Epic window found. Probing UI state...")
+        bring_to_front(hwnd)
+        _debug_dump_window(hwnd, "start")
 
-    # Determine state: login form vs already logged in
-    login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
-    password_field = probe_template(hwnd, "password_field.png", threshold=0.80, timeout=2)
-    success = probe_template(hwnd, "success.png", threshold=0.90, timeout=2)
+        login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
+        password_field = probe_template(hwnd, "password_field.png", threshold=0.80, timeout=2)
+        success = probe_template(hwnd, "success.png", threshold=0.90, timeout=2)
 
-    if success and not (login_field or password_field):
-        log("Epic appears logged in (success template found).")
-        perform_backup(args.profile)
-        sys.exit(0)
-
-    if (login_field or password_field):
-        log("Epic appears NOT logged in (login fields detected).")
-        if not (login and password):
-            log("EpicLogin/EpicPassword missing in config.txt")
-            _debug_dump_window(hwnd, "missing_creds")
-            sys.exit(3)
-
-        log("Attempting auto-login...")
-        ok = auto_login(hwnd, login, password)
-        if ok:
+        if success and not (login_field or password_field):
+            log("Epic appears logged in (success template found).")
             perform_backup(args.profile)
-            sys.exit(0)
+            exit_code = 0
+            return
 
-        log("Auto-login failed.")
-        _debug_dump_window(hwnd, "login_failed")
-        sys.exit(4)
+        if (login_field or password_field):
+            log("Epic appears NOT logged in (login fields detected).")
+            if not (login and password):
+                log("EpicLogin/EpicPassword missing in config.txt")
+                _debug_dump_window(hwnd, "missing_creds")
+                exit_code = 3
+                return
 
-    # Neither success nor login UI matched: templates likely wrong DPI/theme
-    log("Epic UI state UNKNOWN: neither success nor login fields matched. Templates likely mismatch.")
-    _debug_dump_window(hwnd, "unknown_ui")
-    sys.exit(5)
+            log("Attempting auto-login...")
+            ok = auto_login(hwnd, login, password)
+            if ok:
+                perform_backup(args.profile)
+                exit_code = 0
+                return
 
-    # unreachable due to sys.exit above, but keep structure for safety
-    subprocess.Popen([sys.executable, __file__, "--guard", "--profile", args.profile], creationflags=0x08000000)
-    log("Guard spawned. Done.")
+            log("Auto-login failed.")
+            _debug_dump_window(hwnd, "login_failed")
+            exit_code = 4
+            return
+
+        log("Epic UI state UNKNOWN: neither success nor login fields matched. Templates likely mismatch.")
+        _debug_dump_window(hwnd, "unknown_ui")
+        exit_code = 5
+        return
+    finally:
+        # Always spawn guard so it keeps searching continuously.
+        spawn_guard(args.profile)
+        if exit_code != 0:
+            log(f"Exiting with code {exit_code} (guard continues in background).")
+        sys.exit(exit_code)
 
 if __name__ == "__main__":
     try:
