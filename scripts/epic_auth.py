@@ -132,14 +132,44 @@ def get_window_rect(hwnd):
     return left, top, right, bottom
 
 def capture_window_bgr(hwnd):
+    """Capture only the Epic window. Try PrintWindow (works even if partially covered), fallback to mss on the hwnd rect."""
     left, top, right, bottom = get_window_rect(hwnd)
     width = right - left
     height = bottom - top
+
+    # Try PrintWindow for occluded windows
+    try:
+        import win32ui
+        import win32print
+
+        hwndDC = win32gui.GetWindowDC(hwnd)
+        mfcDC = win32ui.CreateDCFromHandle(hwndDC)
+        saveDC = mfcDC.CreateCompatibleDC()
+        saveBitMap = win32ui.CreateBitmap()
+        saveBitMap.CreateCompatibleBitmap(mfcDC, width, height)
+        saveDC.SelectObject(saveBitMap)
+
+        result = win32gui.PrintWindow(hwnd, saveDC.GetSafeHdc(), 0)
+        if result == 1:
+            bmpinfo = saveBitMap.GetInfo()
+            bmpstr = saveBitMap.GetBitmapBits(True)
+            img = np.frombuffer(bmpstr, dtype='uint8')
+            img.shape = (bmpinfo['bmHeight'], bmpinfo['bmWidth'], 4)
+            bgr = img[:, :, :3].copy()
+            win32gui.DeleteObject(saveBitMap.GetHandle())
+            saveDC.DeleteDC()
+            mfcDC.DeleteDC()
+            win32gui.ReleaseDC(hwnd, hwndDC)
+            return bgr
+    except Exception:
+        # Fallback to mss below
+        pass
+
     with mss.mss() as sct:
         monitor = {"left": left, "top": top, "width": width, "height": height}
         shot = sct.grab(monitor)
         img = np.array(shot)
-        return img[:, :, :3] # BGR
+        return img[:, :, :3]  # BGR
 
 def match_template_multiscale(screen_gray, template_gray, scales):
     best = None
@@ -184,7 +214,13 @@ def wait_template(hwnd, template_name, threshold=0.85, timeout=30, scales=[0.9, 
 def bring_to_front(hwnd):
     if win32gui.IsIconic(hwnd):
         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+    # Make topmost briefly to avoid occlusion, then drop topmost
+    win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+    win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
+    time.sleep(0.2)
     win32gui.SetForegroundWindow(hwnd)
+    time.sleep(0.2)
+    win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0, win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
 
 def click_at(hwnd, x, y):
     left, top, _, _ = get_window_rect(hwnd)
