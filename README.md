@@ -251,7 +251,14 @@ VirtApp-3.5.3.exe
 - Скрипт `scripts/epic_auth.py` автоматически пытается восстановить сессию Epic и, при необходимости, вводит логин/пароль.
 - Он захватывает окно через `PrintWindow` или `mss`, кратковременно устанавливает его поверх всех окон, выравнивает по шаблонам
   `templates/login_field.png`, `templates/password_field.png` и `templates/success.png` и кликает по нужным полям.
-- Убедитесь, что в `config.txt` указаны `EpicLogin` и `EpicPassword`, а шаблоны в `scripts/templates/` соответствуют текущему DPI/разрешению.
+- Убедитесь, что в `config.txt` указаны `EpicLogin` и `EpicPassword`.
+- Режим работы задаётся через `EpicAuthMode`:
+  - `off` — выключено
+  - `detect` — только по шаблонам (DPI/язык/тема должны совпадать)
+  - `blind` — слепой ввод (работает даже при несовпадении шаблонов)
+  - `auto` — сначала `detect`, если не совпало → `blind`
+- Для `blind` можно задать координаты (пиксели или доли 0..1 от окна Epic):
+  `EpicBlindEmailX`, `EpicBlindEmailY`, `EpicBlindPasswordX`, `EpicBlindPasswordY`, `EpicBlindUseTab`.
 - Скрипт проверяет наличие `EpicGamesLauncher.exe`, ищет окно по классу `UnrealWindow` или по части заголовка и не зависит от того,
   запущен ли лаунчер до старта скрипта.
 - Для корректной работы заранее установите зависимости из `requirements.txt` (`opencv-python`, `mss`, `numpy`, `pywin32`, `pywinauto`);

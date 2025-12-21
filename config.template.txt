@@ -22,8 +22,24 @@ Server=1
 #                         EPIC GAMES (опционально)
 # ─────────────────────────────────────────────────────────────────────────────
 EpicAuthEnabled=1
+# Режимы:
+#   off    - полностью выключить epic_auth
+#   detect - только детект по шаблонам (login_field/password_field/success)
+#   blind  - “слепой” ввод по координатам/Tab (без шаблонов)
+#   auto   - сначала detect, если не совпало → blind
+EpicAuthMode=auto
+# Совместимость/тонкая настройка (если EpicAuthMode не указан):
+EpicDetect=1
+EpicBlind=1
 EpicLogin=ТВОЙ_EMAIL
 EpicPassword=ТВОЙ_ПАРОЛЬ
+
+# Blind login (координаты могут быть пиксели или доли 0..1 от окна Epic)
+# EpicBlindEmailX=0.33
+# EpicBlindEmailY=0.42
+# EpicBlindPasswordX=0.33
+# EpicBlindPasswordY=0.52
+# EpicBlindUseTab=1
 
 # ─────────────────────────────────────────────────────────────────────────────
 #                         НАСТРОЙКИ БОТА

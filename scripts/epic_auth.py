@@ -224,6 +224,65 @@ def parse_kv_config(path: Path) -> dict:
         log(f"Config parse error: {e}")
     return data
 
+
+def _parse_bool(value: Optional[str], default: bool) -> bool:
+    if value is None:
+        return default
+    s = str(value).strip().lower()
+    if s == "":
+        return default
+    if s in {"1", "true", "yes", "y", "on", "enable", "enabled"}:
+        return True
+    if s in {"0", "false", "no", "n", "off", "disable", "disabled"}:
+        return False
+    return default
+
+
+def _parse_float(value: Optional[str], default: float) -> float:
+    if value is None:
+        return default
+    try:
+        return float(str(value).strip().replace(",", "."))
+    except Exception:
+        return default
+
+
+def get_epic_auth_mode(cfg: dict) -> str:
+    """Return one of: off | detect | blind | auto.
+
+    Config keys supported:
+    - EpicAuth=ON/OFF
+    - EpicAuthEnabled=1/0 (legacy; treated same as EpicAuth)
+    - EpicAuthMode=auto|detect|blind|off
+    - EpicDetect=ON/OFF (legacy toggle)
+    - EpicBlind=ON/OFF (legacy toggle)
+    """
+    epic_auth_flag = cfg.get("EpicAuth")
+    if epic_auth_flag is None:
+        epic_auth_flag = cfg.get("EpicAuthEnabled")
+
+    if not _parse_bool(epic_auth_flag, True):
+        return "off"
+
+    mode = str(cfg.get("EpicAuthMode", "auto")).strip().lower()
+    if mode in {"off", "0", "false"}:
+        return "off"
+    if mode in {"detect", "template", "templates"}:
+        return "detect"
+    if mode in {"blind", "coords", "coordinate", "coordinates"}:
+        return "blind"
+
+    # Auto mode with optional toggles
+    detect_on = _parse_bool(cfg.get("EpicDetect"), True)
+    blind_on = _parse_bool(cfg.get("EpicBlind"), True)
+    if detect_on and blind_on:
+        return "auto"
+    if detect_on and not blind_on:
+        return "detect"
+    if (not detect_on) and blind_on:
+        return "blind"
+    return "off"
+
 # ==================================================================================
 # VISION & WINDOW CONTROL
 # ==================================================================================
@@ -388,11 +447,33 @@ def find_epic_window():
             vis = bool(win32gui.IsWindowVisible(h))
         except Exception:
             vis = False
+        try:
+            cls = (win32gui.GetClassName(h) or "").strip()
+        except Exception:
+            cls = ""
         # Prefer visible, titled, large windows
-        return (1000000 if vis else 0) + (100000 if title else 0) + area
+        class_bonus = 200000 if cls == "UnrealWindow" else 0
+        return (1000000 if vis else 0) + class_bonus + (100000 if title else 0) + area
 
     if candidates:
-        best = max(candidates, key=score_window)
+        # Prefer visible/real windows; avoid hidden Chromium widgets when possible.
+        def big_enough(h: int) -> bool:
+            try:
+                l, t, r, b = win32gui.GetWindowRect(h)
+                return (r - l) >= 500 and (b - t) >= 350
+            except Exception:
+                return False
+
+        vis_candidates = []
+        for h in candidates:
+            try:
+                if win32gui.IsWindowVisible(h) and big_enough(h):
+                    vis_candidates.append(h)
+            except Exception:
+                pass
+
+        best_pool = vis_candidates if vis_candidates else candidates
+        best = max(best_pool, key=score_window)
         log(f"Epic window (by PID) selected: {_window_info(best)}")
         return best
 
@@ -494,6 +575,79 @@ def focus_epic_for_action(hwnd: int, action):
         return action()
     finally:
         try_restore_foreground(prev)
+
+
+def _coerce_xy(value: float, size: int) -> int:
+    """If value <= 1 treat as ratio, else as pixels."""
+    if value <= 1.0:
+        return int(max(0, min(size - 1, round(size * value))))
+    return int(max(0, min(size - 1, round(value))))
+
+
+def blind_login(hwnd: int, login: str, password: str, cfg: dict) -> bool:
+    """Best-effort login without templates (DPI/template mismatch fallback).
+
+    Uses configurable coordinates (ratio or px) and a TAB workflow.
+    Defaults are approximate and may need per-fleet calibration.
+    """
+    try:
+        left, top, right, bottom = get_window_rect(hwnd)
+        width = max(1, right - left)
+        height = max(1, bottom - top)
+    except Exception:
+        width, height = 1000, 600
+
+    email_x = _parse_float(cfg.get("EpicBlindEmailX"), 0.50)
+    email_y = _parse_float(cfg.get("EpicBlindEmailY"), 0.55)
+    pass_x = _parse_float(cfg.get("EpicBlindPasswordX"), 0.50)
+    pass_y = _parse_float(cfg.get("EpicBlindPasswordY"), 0.63)
+    use_tab = _parse_bool(cfg.get("EpicBlindUseTab"), True)
+
+    x_email = _coerce_xy(email_x, width)
+    y_email = _coerce_xy(email_y, height)
+    x_pass = _coerce_xy(pass_x, width)
+    y_pass = _coerce_xy(pass_y, height)
+
+    log(f"Blind login: clicking email @ ({x_email},{y_email}), password @ ({x_pass},{y_pass}), tab={use_tab}")
+
+    def _do():
+        switch_to_english()
+
+        # Email
+        click_at(hwnd, x_email, y_email)
+        time.sleep(0.25)
+        send_keys("^a{DELETE}", pause=0.05)
+        time.sleep(0.1)
+        set_clipboard(login)
+        send_keys("^v", pause=0.05)
+        time.sleep(0.2)
+
+        # Password
+        if use_tab:
+            send_keys("{TAB}")
+            time.sleep(0.15)
+        else:
+            click_at(hwnd, x_pass, y_pass)
+            time.sleep(0.15)
+
+        send_keys("^a{DELETE}", pause=0.05)
+        time.sleep(0.1)
+        set_clipboard(password)
+        send_keys("^v", pause=0.05)
+        time.sleep(0.2)
+
+        send_keys("{ENTER}")
+
+    focus_epic_for_action(hwnd, _do)
+
+    # Optional best-effort confirmation
+    time.sleep(2.0)
+    if probe_template(hwnd, "success.png", threshold=0.75, timeout=2):
+        log("Blind login: success template detected.")
+        return True
+
+    log("Blind login: submitted (success not confirmed by template).")
+    return False
 
 def click_at(hwnd, x, y):
     left, top, _, _ = get_window_rect(hwnd)
@@ -645,6 +799,7 @@ def guard_mode(profile_name="default"):
     poll_interval = 10  # seconds (how often we check Epic)
     backup_interval = GUARD_INTERVAL  # keep existing 5 min default
     login_attempt_cooldown = 30  # seconds (avoid spamming)
+    blind_attempt_cooldown = 180  # seconds (blind mode is intrusive; keep it rarer)
     config_reload_interval = 60
 
     last_backup = 0.0
@@ -652,6 +807,8 @@ def guard_mode(profile_name="default"):
     last_config_reload = 0.0
     last_unknown_dump = 0.0
 
+    cfg: dict = {}
+    mode = "auto"
     login = None
     password = None
 
@@ -665,32 +822,58 @@ def guard_mode(profile_name="default"):
                 cfg = parse_kv_config(CONFIG_PATH)
                 login = cfg.get("EpicLogin")
                 password = cfg.get("EpicPassword")
+                mode = get_epic_auth_mode(cfg)
                 last_config_reload = now
 
             if epic_alive:
                 hwnd = find_epic_window()
                 if hwnd:
+                    # If we accidentally grabbed a hidden helper window, wait briefly for a visible one.
+                    try:
+                        if not win32gui.IsWindowVisible(hwnd):
+                            for _ in range(10):
+                                time.sleep(0.3)
+                                h2 = find_epic_window()
+                                if h2 and win32gui.IsWindowVisible(h2):
+                                    hwnd = h2
+                                    break
+                    except Exception:
+                        pass
+
                     success = probe_template(hwnd, "success.png", threshold=0.90, timeout=2)
                     if success:
                         if now - last_backup >= backup_interval:
                             perform_backup(profile_name)
                             last_backup = now
                     else:
-                        # not logged in (or template mismatch)
-                        login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
-                        password_field = probe_template(hwnd, "password_field.png", threshold=0.80, timeout=2)
-
-                        if (login_field or password_field):
-                            if login and password and (now - last_login_attempt >= login_attempt_cooldown):
-                                log("Guard: Epic not logged in. Attempting auto-login...")
+                        if mode == "off":
+                            # Do nothing; keep backing up occasionally.
+                            pass
+                        elif mode == "blind":
+                            if login and password and (now - last_login_attempt >= blind_attempt_cooldown):
+                                log("Guard: blind login attempt...")
                                 last_login_attempt = now
-                                auto_login(hwnd, login, password)
+                                blind_login(hwnd, login, password, cfg)
                         else:
-                            # Unknown UI (most often DPI/template mismatch). Dump rarely.
-                            if now - last_unknown_dump >= backup_interval:
-                                log("Guard: Epic UI state unknown (no success/login templates). Saving debug screenshot.")
-                                _debug_dump_window(hwnd, "guard_unknown_ui")
-                                last_unknown_dump = now
+                            # detect/auto path
+                            login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
+                            password_field = probe_template(hwnd, "password_field.png", threshold=0.80, timeout=2)
+
+                            if (login_field or password_field):
+                                if login and password and (now - last_login_attempt >= login_attempt_cooldown):
+                                    log("Guard: Epic not logged in. Attempting auto-login...")
+                                    last_login_attempt = now
+                                    auto_login(hwnd, login, password)
+                            else:
+                                # Unknown UI (most often DPI/template mismatch)
+                                if mode == "auto" and login and password and (now - last_login_attempt >= blind_attempt_cooldown):
+                                    log("Guard: templates mismatch; falling back to blind login...")
+                                    last_login_attempt = now
+                                    blind_login(hwnd, login, password, cfg)
+                                elif now - last_unknown_dump >= backup_interval:
+                                    log("Guard: Epic UI state unknown (no success/login templates). Saving debug screenshot.")
+                                    _debug_dump_window(hwnd, "guard_unknown_ui")
+                                    last_unknown_dump = now
                 else:
                     # Epic process running but no window
                     if now - last_unknown_dump >= backup_interval:
@@ -732,7 +915,7 @@ def main():
         active_char = config.get("Active Character", "1")
         args.profile = f"profile_{active_char}"
     
-    log(f"--- EPIC AUTH MODERN v9.3 START [Profile: {args.profile}] ---")
+    log(f"--- EPIC AUTH MODERN v9.4 START [Profile: {args.profile}] ---")
     log(f"Python: {sys.executable}")
     log(f"Args: {sys.argv}")
 
@@ -744,8 +927,10 @@ def main():
         perform_backup(args.profile)
         return
 
+    mode = get_epic_auth_mode(config)
     login = config.get("EpicLogin")
     password = config.get("EpicPassword")
+    log(f"Mode: {mode} (EpicDetect/EpicBlind/EpicAuthMode)")
 
     hwnd = None
     exit_code = 0
@@ -764,6 +949,18 @@ def main():
                     break
                 time.sleep(1)
 
+        # If we got a hidden helper window, wait briefly for a visible one.
+        try:
+            if hwnd and (not win32gui.IsWindowVisible(hwnd)):
+                for _ in range(10):
+                    time.sleep(0.3)
+                    h2 = find_epic_window()
+                    if h2 and win32gui.IsWindowVisible(h2):
+                        hwnd = h2
+                        break
+        except Exception:
+            pass
+
         if not hwnd:
             log("Failed to find Epic window.")
             exit_code = 2
@@ -772,6 +969,24 @@ def main():
         log("Epic window found. Probing UI state (no focus steal)...")
         _debug_dump_window(hwnd, "start")
 
+        if mode == "off":
+            log("EpicAuth disabled (mode=off).")
+            exit_code = 0
+            return
+
+        if mode == "blind":
+            if not (login and password):
+                log("EpicLogin/EpicPassword missing in config.txt")
+                _debug_dump_window(hwnd, "missing_creds")
+                exit_code = 3
+                return
+            ok = blind_login(hwnd, login, password, config)
+            if ok:
+                perform_backup(args.profile)
+            exit_code = 0
+            return
+
+        # detect/auto: probe templates first
         login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
         password_field = probe_template(hwnd, "password_field.png", threshold=0.80, timeout=2)
         success = probe_template(hwnd, "success.png", threshold=0.90, timeout=2)
@@ -790,7 +1005,7 @@ def main():
                 exit_code = 3
                 return
 
-            log("Attempting auto-login...")
+            log("Attempting auto-login (template mode)...")
             ok = auto_login(hwnd, login, password)
             if ok:
                 perform_backup(args.profile)
@@ -802,13 +1017,21 @@ def main():
             exit_code = 4
             return
 
+        # Unknown UI
+        if mode == "auto" and (login and password):
+            log("Templates mismatch; falling back to blind login...")
+            blind_login(hwnd, login, password, config)
+            exit_code = 0
+            return
+
         log("Epic UI state UNKNOWN: neither success nor login fields matched. Templates likely mismatch.")
         _debug_dump_window(hwnd, "unknown_ui")
         exit_code = 5
         return
     finally:
         # Always spawn guard so it keeps searching continuously.
-        spawn_guard(args.profile)
+        if mode != "off":
+            spawn_guard(args.profile)
         if exit_code != 0:
             log(f"Exiting with code {exit_code} (guard continues in background).")
         sys.exit(exit_code)
