@@ -428,16 +428,72 @@ def find_epic_window():
         pass
     return None
 
+
+def get_foreground_window() -> Optional[int]:
+    try:
+        h = win32gui.GetForegroundWindow()
+        return int(h) if h else None
+    except Exception:
+        return None
+
+
+def try_restore_foreground(prev_hwnd: Optional[int]):
+    if not prev_hwnd:
+        return
+    try:
+        if win32gui.IsWindow(prev_hwnd) and win32gui.IsWindowVisible(prev_hwnd):
+            win32gui.SetForegroundWindow(prev_hwnd)
+    except Exception:
+        pass
+
 def bring_to_front(hwnd):
-    if win32gui.IsIconic(hwnd):
-        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-    # Make topmost briefly to avoid occlusion, then drop topmost
-    win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
-    win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
-    time.sleep(0.2)
-    win32gui.SetForegroundWindow(hwnd)
-    time.sleep(0.2)
-    win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0, win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW)
+    """Bring Epic to foreground briefly.
+
+    IMPORTANT: Do not call this continuously; only when click/typing is required.
+    Returns previous foreground window (best-effort).
+    """
+    prev = get_foreground_window()
+    try:
+        if win32gui.IsIconic(hwnd):
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+
+        win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+        win32gui.SetWindowPos(
+            hwnd,
+            win32con.HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW,
+        )
+        time.sleep(0.15)
+        win32gui.SetForegroundWindow(hwnd)
+        time.sleep(0.15)
+    except Exception:
+        pass
+    finally:
+        try:
+            win32gui.SetWindowPos(
+                hwnd,
+                win32con.HWND_NOTOPMOST,
+                0,
+                0,
+                0,
+                0,
+                win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW,
+            )
+        except Exception:
+            pass
+    return prev
+
+
+def focus_epic_for_action(hwnd: int, action):
+    prev = bring_to_front(hwnd)
+    try:
+        return action()
+    finally:
+        try_restore_foreground(prev)
 
 def click_at(hwnd, x, y):
     left, top, _, _ = get_window_rect(hwnd)
@@ -506,51 +562,56 @@ def switch_to_english():
 
 def auto_login(hwnd, login, password):
     log("Starting Vision-based Auto-Login...")
-    bring_to_front(hwnd)
-    switch_to_english()
-    
+
+    # IMPORTANT: Do NOT keep Epic window foreground.
+    # We do template matching using PrintWindow/mss capture without stealing focus.
     match = wait_template(hwnd, "login_field.png", timeout=20)
     if not match:
         log("Login field not found. Maybe already logged in?")
         return False
-    
-    click_at(hwnd, match.x + match.w // 2, match.y + match.h // 2)
-    time.sleep(0.5)
-    send_keys("^a{DELETE}", pause=0.1)
-    time.sleep(0.2)
-    
-    set_clipboard(login)
-    send_keys("^v", pause=0.1)
-    time.sleep(0.5)
-    send_keys("{ENTER}")
-    
+
+    def enter_login():
+        switch_to_english()
+        click_at(hwnd, match.x + match.w // 2, match.y + match.h // 2)
+        time.sleep(0.3)
+        send_keys("^a{DELETE}", pause=0.1)
+        time.sleep(0.15)
+        set_clipboard(login)
+        send_keys("^v", pause=0.1)
+        time.sleep(0.25)
+        send_keys("{ENTER}")
+
+    focus_epic_for_action(hwnd, enter_login)
+
     match = wait_template(hwnd, "password_field.png", timeout=15)
     if not match:
         log("Password field not found after login enter.")
         return False
-    
-    click_at(hwnd, match.x + match.w // 2, match.y + match.h // 2)
-    time.sleep(0.5)
-    send_keys("^a{DELETE}", pause=0.1)
-    
-    set_clipboard(password)
-    send_keys("^v", pause=0.1)
-    time.sleep(0.5)
-    
-    # Final sequence: Enter -> Wait -> TAB -> Enter (to ensure button click)
-    send_keys("{ENTER}")
-    time.sleep(1.0)
-    send_keys("{TAB}")
-    time.sleep(0.2)
-    send_keys("{ENTER}")
-    
+
+    def enter_password_and_submit():
+        switch_to_english()
+        click_at(hwnd, match.x + match.w // 2, match.y + match.h // 2)
+        time.sleep(0.3)
+        send_keys("^a{DELETE}", pause=0.1)
+        set_clipboard(password)
+        send_keys("^v", pause=0.1)
+        time.sleep(0.25)
+        # Final sequence: Enter -> Wait -> TAB -> Enter (to ensure button click)
+        send_keys("{ENTER}")
+        time.sleep(1.0)
+        send_keys("{TAB}")
+        time.sleep(0.2)
+        send_keys("{ENTER}")
+
+    focus_epic_for_action(hwnd, enter_password_and_submit)
+
     log("Waiting for success confirmation...")
     if wait_template(hwnd, "success.png", timeout=30):
         log("Login SUCCESSFUL!")
         return True
-    else:
-        log("Login verification TIMEOUT.")
-        return False
+
+    log("Login verification TIMEOUT.")
+    return False
 
 # ==================================================================================
 # MODES
@@ -609,8 +670,6 @@ def guard_mode(profile_name="default"):
             if epic_alive:
                 hwnd = find_epic_window()
                 if hwnd:
-                    bring_to_front(hwnd)
-
                     success = probe_template(hwnd, "success.png", threshold=0.90, timeout=2)
                     if success:
                         if now - last_backup >= backup_interval:
@@ -710,8 +769,7 @@ def main():
             exit_code = 2
             return
 
-        log("Epic window found. Probing UI state...")
-        bring_to_front(hwnd)
+        log("Epic window found. Probing UI state (no focus steal)...")
         _debug_dump_window(hwnd, "start")
 
         login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
