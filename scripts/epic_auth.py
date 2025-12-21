@@ -577,6 +577,71 @@ def focus_epic_for_action(hwnd: int, action):
         try_restore_foreground(prev)
 
 
+def _open_epic_via_uri(uri: str = "com.epicgames.launcher://store") -> bool:
+    """Ask Windows to open Epic Launcher via URI.
+
+    Useful when Epic is running but its main window is hidden in tray.
+    """
+    try:
+        subprocess.Popen(
+            ["cmd", "/c", "start", "", uri],
+            creationflags=0x08000000,  # CREATE_NO_WINDOW
+            close_fds=True,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def ensure_epic_window_visible(hwnd: Optional[int], cfg: dict, *, allow_uri: bool = True) -> Optional[int]:
+    """Best-effort: make sure Epic window is shown (not just tray).
+
+    - If hwnd exists but is hidden/minimized: restore/show it without keeping focus.
+    - If hwnd is None: optionally trigger Epic via URI and re-find.
+    """
+    force_show = _parse_bool(cfg.get("EpicForceShowWindow"), True)
+    if not force_show:
+        return hwnd
+
+    def _show_no_focus(h: int):
+        try:
+            if win32gui.IsIconic(h):
+                win32gui.ShowWindow(h, win32con.SW_RESTORE)
+            win32gui.ShowWindow(h, win32con.SW_SHOW)
+            # Nudge window so it becomes visible without forcing foreground.
+            win32gui.SetWindowPos(
+                h,
+                win32con.HWND_NOTOPMOST,
+                0,
+                0,
+                0,
+                0,
+                win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW,
+            )
+        except Exception:
+            pass
+
+    if hwnd and win32gui.IsWindow(hwnd):
+        try:
+            if not win32gui.IsWindowVisible(hwnd) or win32gui.IsIconic(hwnd):
+                log("Epic window is hidden/minimized; restoring (no focus)...")
+                _show_no_focus(hwnd)
+                time.sleep(0.5)
+        except Exception:
+            pass
+        return hwnd
+
+    if allow_uri and _parse_bool(cfg.get("EpicForceOpenUri"), True):
+        if _open_epic_via_uri(str(cfg.get("EpicOpenUri", "com.epicgames.launcher://store"))):
+            time.sleep(1.0)
+            h2 = find_epic_window()
+            if h2:
+                _show_no_focus(h2)
+                return h2
+
+    return hwnd
+
+
 def _coerce_xy(value: float, size: int) -> int:
     """If value <= 1 treat as ratio, else as pixels."""
     if value <= 1.0:
@@ -827,6 +892,7 @@ def guard_mode(profile_name="default"):
 
             if epic_alive:
                 hwnd = find_epic_window()
+                hwnd = ensure_epic_window_visible(hwnd, cfg)
                 if hwnd:
                     # If we accidentally grabbed a hidden helper window, wait briefly for a visible one.
                     try:
@@ -948,6 +1014,9 @@ def main():
                 if hwnd and win32gui.IsWindowVisible(hwnd):
                     break
                 time.sleep(1)
+
+        # If Epic starts to tray / hidden, try to force-show the window.
+        hwnd = ensure_epic_window_visible(hwnd, config)
 
         # If we got a hidden helper window, wait briefly for a visible one.
         try:

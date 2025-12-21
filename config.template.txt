@@ -41,6 +41,11 @@ EpicPassword=ТВОЙ_ПАРОЛЬ
 # EpicBlindPasswordY=0.52
 # EpicBlindUseTab=1
 
+# Если Epic запускается, но прячется в трей (окно не разворачивается)
+EpicForceShowWindow=1
+EpicForceOpenUri=1
+# EpicOpenUri=com.epicgames.launcher://store
+
 # ─────────────────────────────────────────────────────────────────────────────
 #                         НАСТРОЙКИ БОТА
 # ─────────────────────────────────────────────────────────────────────────────
