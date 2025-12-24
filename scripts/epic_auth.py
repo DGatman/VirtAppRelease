@@ -531,6 +531,7 @@ def bring_to_front(hwnd):
     """Bring Epic to foreground briefly.
 
     IMPORTANT: Do not call this continuously; only when click/typing is required.
+    Must not leave the window as TOPMOST (to avoid covering the game/farm).
     Returns previous foreground window (best-effort).
     """
     prev = get_foreground_window()
@@ -541,7 +542,7 @@ def bring_to_front(hwnd):
         win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
         win32gui.SetWindowPos(
             hwnd,
-            win32con.HWND_TOPMOST,
+            win32con.HWND_TOP,
             0,
             0,
             0,
@@ -553,19 +554,6 @@ def bring_to_front(hwnd):
         time.sleep(0.15)
     except Exception:
         pass
-    finally:
-        try:
-            win32gui.SetWindowPos(
-                hwnd,
-                win32con.HWND_NOTOPMOST,
-                0,
-                0,
-                0,
-                0,
-                win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW,
-            )
-        except Exception:
-            pass
     return prev
 
 
@@ -593,13 +581,19 @@ def _open_epic_via_uri(uri: str = "com.epicgames.launcher://store") -> bool:
         return False
 
 
-def ensure_epic_window_visible(hwnd: Optional[int], cfg: dict, *, allow_uri: bool = True) -> Optional[int]:
+def ensure_epic_window_visible(
+    hwnd: Optional[int],
+    cfg: dict,
+    *,
+    allow_uri: bool = True,
+    default_force_show: bool = True,
+) -> Optional[int]:
     """Best-effort: make sure Epic window is shown (not just tray).
 
     - If hwnd exists but is hidden/minimized: restore/show it without keeping focus.
     - If hwnd is None: optionally trigger Epic via URI and re-find.
     """
-    force_show = _parse_bool(cfg.get("EpicForceShowWindow"), True)
+    force_show = _parse_bool(cfg.get("EpicForceShowWindow"), default_force_show)
     if not force_show:
         return hwnd
 
@@ -631,7 +625,7 @@ def ensure_epic_window_visible(hwnd: Optional[int], cfg: dict, *, allow_uri: boo
             pass
         return hwnd
 
-    if allow_uri and _parse_bool(cfg.get("EpicForceOpenUri"), True):
+    if allow_uri and _parse_bool(cfg.get("EpicForceOpenUri"), default_force_show):
         if _open_epic_via_uri(str(cfg.get("EpicOpenUri", "com.epicgames.launcher://store"))):
             time.sleep(1.0)
             h2 = find_epic_window()
@@ -890,9 +884,17 @@ def guard_mode(profile_name="default"):
                 mode = get_epic_auth_mode(cfg)
                 last_config_reload = now
 
+            # CRITICAL: if the game is running, never pop Epic on top.
+            # Only do backups in this state.
+            if gta_alive:
+                if epic_alive and (now - last_backup >= backup_interval):
+                    perform_backup(profile_name)
+                    last_backup = now
+                time.sleep(poll_interval)
+                continue
+
             if epic_alive:
                 hwnd = find_epic_window()
-                hwnd = ensure_epic_window_visible(hwnd, cfg)
                 if hwnd:
                     # If we accidentally grabbed a hidden helper window, wait briefly for a visible one.
                     try:
@@ -919,6 +921,8 @@ def guard_mode(profile_name="default"):
                             if login and password and (now - last_login_attempt >= blind_attempt_cooldown):
                                 log("Guard: blind login attempt...")
                                 last_login_attempt = now
+                                # Only allow force-show during the attempt; default is non-intrusive.
+                                hwnd = ensure_epic_window_visible(hwnd, cfg, default_force_show=False)
                                 blind_login(hwnd, login, password, cfg)
                         else:
                             # detect/auto path
@@ -929,12 +933,14 @@ def guard_mode(profile_name="default"):
                                 if login and password and (now - last_login_attempt >= login_attempt_cooldown):
                                     log("Guard: Epic not logged in. Attempting auto-login...")
                                     last_login_attempt = now
+                                    hwnd = ensure_epic_window_visible(hwnd, cfg, default_force_show=False)
                                     auto_login(hwnd, login, password)
                             else:
                                 # Unknown UI (most often DPI/template mismatch)
                                 if mode == "auto" and login and password and (now - last_login_attempt >= blind_attempt_cooldown):
                                     log("Guard: templates mismatch; falling back to blind login...")
                                     last_login_attempt = now
+                                    hwnd = ensure_epic_window_visible(hwnd, cfg, default_force_show=False)
                                     blind_login(hwnd, login, password, cfg)
                                 elif now - last_unknown_dump >= backup_interval:
                                     log("Guard: Epic UI state unknown (no success/login templates). Saving debug screenshot.")
