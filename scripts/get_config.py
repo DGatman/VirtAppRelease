@@ -42,6 +42,7 @@ SCRIPT_DIR = Path(__file__).parent
 BOT_ROOT = SCRIPT_DIR.parent
 CONFIG_FILE = BOT_ROOT / "config.txt"
 CREDENTIALS_FILE = BOT_ROOT / "credentials.json"
+UPDATE_GTA_SETTINGS_SCRIPT = SCRIPT_DIR / "update_gta_settings.py"
 
 def get_external_ip():
     """Получает внешний IP адрес из интернета"""
@@ -191,6 +192,29 @@ def main():
         return False
     
     save_credentials_to_file(config, CREDENTIALS_FILE)
+
+    # Optional post-sync step: update GTA V settings.xml (GPU name etc).
+    try:
+        if UPDATE_GTA_SETTINGS_SCRIPT.exists():
+            print("\n🛠️  Running update_gta_settings.py...", flush=True)
+            completed = subprocess.run(
+                [sys.executable, str(UPDATE_GTA_SETTINGS_SCRIPT), "--no-kill"],
+                cwd=str(BOT_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if completed.stdout:
+                print(completed.stdout.strip(), flush=True)
+            if completed.returncode != 0:
+                err = (completed.stderr or "").strip()
+                if err:
+                    print(err, flush=True)
+                print("⚠️  update_gta_settings.py failed (continuing).", flush=True)
+        else:
+            print("\nℹ️  update_gta_settings.py not found (skipping).", flush=True)
+    except Exception as e:
+        print(f"\n⚠️  update_gta_settings step failed (continuing): {e}", flush=True)
     
     print("\n" + "=" * 70)
     print("✅ УСПЕХ! Конфигурация обновлена.")

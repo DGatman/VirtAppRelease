@@ -565,6 +565,30 @@ def focus_epic_for_action(hwnd: int, action):
         try_restore_foreground(prev)
 
 
+def minimize_window(hwnd: Optional[int]):
+    try:
+        if hwnd and win32gui.IsWindow(hwnd):
+            win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+    except Exception:
+        pass
+
+
+def _maybe_focus_for_probe(hwnd: int, cfg: dict, *, default: bool) -> Optional[int]:
+    """Optionally bring Epic to front for reliable probing/capture.
+
+    Some systems fall back to screen capture (mss) when PrintWindow fails; in that case
+    the window must be visible/not covered.
+    """
+    if _parse_bool(cfg.get("EpicProbeBringToFront"), default):
+        return bring_to_front(hwnd)
+    return None
+
+
+def _maybe_minimize_after_probe(hwnd: int, cfg: dict, *, default: bool):
+    if _parse_bool(cfg.get("EpicMinimizeAfterProbe"), default):
+        minimize_window(hwnd)
+
+
 def _open_epic_via_uri(uri: str = "com.epicgames.launcher://store") -> bool:
     """Ask Windows to open Epic Launcher via URI.
 
@@ -908,7 +932,12 @@ def guard_mode(profile_name="default"):
                     except Exception:
                         pass
 
-                    success = probe_template(hwnd, "success.png", threshold=0.90, timeout=2)
+                    prev_probe = _maybe_focus_for_probe(hwnd, cfg, default=False)
+                    try:
+                        success = probe_template(hwnd, "success.png", threshold=0.90, timeout=2)
+                    finally:
+                        _maybe_minimize_after_probe(hwnd, cfg, default=False)
+                        try_restore_foreground(prev_probe)
                     if success:
                         if now - last_backup >= backup_interval:
                             perform_backup(profile_name)
@@ -926,8 +955,13 @@ def guard_mode(profile_name="default"):
                                 blind_login(hwnd, login, password, cfg)
                         else:
                             # detect/auto path
-                            login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
-                            password_field = probe_template(hwnd, "password_field.png", threshold=0.80, timeout=2)
+                            prev_probe = _maybe_focus_for_probe(hwnd, cfg, default=False)
+                            try:
+                                login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
+                                password_field = probe_template(hwnd, "password_field.png", threshold=0.80, timeout=2)
+                            finally:
+                                _maybe_minimize_after_probe(hwnd, cfg, default=False)
+                                try_restore_foreground(prev_probe)
 
                             if (login_field or password_field):
                                 if login and password and (now - last_login_attempt >= login_attempt_cooldown):
@@ -1062,9 +1096,15 @@ def main():
             return
 
         # detect/auto: probe templates first
-        login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
-        password_field = probe_template(hwnd, "password_field.png", threshold=0.80, timeout=2)
-        success = probe_template(hwnd, "success.png", threshold=0.90, timeout=2)
+        # Default behavior in main: briefly show Epic for reliable probe, then minimize it.
+        prev_probe = _maybe_focus_for_probe(hwnd, config, default=True)
+        try:
+            login_field = probe_template(hwnd, "login_field.png", threshold=0.80, timeout=2)
+            password_field = probe_template(hwnd, "password_field.png", threshold=0.80, timeout=2)
+            success = probe_template(hwnd, "success.png", threshold=0.90, timeout=2)
+        finally:
+            _maybe_minimize_after_probe(hwnd, config, default=True)
+            try_restore_foreground(prev_probe)
 
         if success and not (login_field or password_field):
             log("Epic appears logged in (success template found).")
